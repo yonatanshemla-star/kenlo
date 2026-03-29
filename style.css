@@ -51,6 +51,99 @@ body {
     overflow: hidden;
 }
 
+/* TV Theme Overrides */
+.app-container.mode-tv {
+    background: linear-gradient(180deg, #020617 0%, #082f49 100%);
+}
+
+.app-container.mode-tv .logo span, 
+.app-container.mode-tv .nav-links li.active,
+.app-container.mode-tv .nav-links li.active i {
+    color: #22d3ee;
+}
+
+.app-container.mode-tv .genre-chip.active,
+.app-container.mode-tv .btn-primary {
+    background: #0891b2;
+    border-color: #0891b2;
+    box-shadow: 0 0 20px rgba(8, 145, 178, 0.3);
+}
+
+/* App Header */
+.app-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px 20px;
+    background: rgba(15, 23, 42, 0.5);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.logo {
+    display: block;
+    font-size: 1.4rem;
+    font-weight: 800;
+    letter-spacing: -1px;
+}
+
+.logo span {
+    color: #818cf8;
+}
+
+/* Mode Toggle */
+.mode-toggle {
+    display: flex;
+    background: rgba(30, 41, 59, 0.8);
+    border-radius: 10px;
+    padding: 4px;
+    position: relative;
+    width: 140px;
+    height: 36px;
+}
+
+.mode-toggle input {
+    display: none;
+}
+
+.mode-toggle label {
+    flex: 1;
+    text-align: center;
+    z-index: 2;
+    font-size: 0.8rem;
+    font-weight: 700;
+    cursor: pointer;
+    line-height: 28px;
+    transition: color 0.3s ease;
+    color: #94a3b8;
+}
+
+.mode-slider {
+    position: absolute;
+    width: calc(50% - 4px);
+    height: calc(100% - 8px);
+    background: #334155;
+    border-radius: 6px;
+    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    left: 4px;
+    z-index: 1;
+}
+
+#mode-movie:checked ~ .mode-slider {
+    left: 4px;
+    background: #475569;
+}
+
+#mode-tv:checked ~ .mode-slider {
+    left: calc(50%);
+    background: #475569;
+}
+
+#mode-movie:checked ~ label[for="mode-movie"],
+#mode-tv:checked ~ label[for="mode-tv"] {
+    color: #fff;
+}
+
 /* Bottom Navigation */
 .main-nav {
     order: 2;

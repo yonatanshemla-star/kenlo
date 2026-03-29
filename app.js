@@ -21,28 +21,33 @@ const GENRES = {
 
 class MovieRanker {
     constructor() {
-        this.allMovies = []; // Starts empty, populated by TMDB API
-        this.seenMovies = [];
-        this.notSeenHistory = {}; // movieId -> timestamp
-        this.watchlist = []; 
-        this.eloScores = {};
+        this.contentType = 'movie'; // 'movie' or 'tv'
+        this.movieData = {
+            all: [],
+            seen: [],
+            notSeen: {},
+            watchlist: [],
+            elo: {},
+            pages: { 'movie/popular':0, 'movie/top_rated':0, 'discover/movie':0, 'movie/now_playing':0 }
+        };
+        this.tvData = {
+            all: [],
+            seen: [],
+            notSeen: {},
+            watchlist: [],
+            elo: {},
+            pages: { 'tv/popular':0, 'tv/top_rated':0, 'discover/tv':0, 'tv/on_the_air':0, 'tv/israeli':0 }
+        };
+
         this.currentView = 'swipe';
-        // Hardcoded API Key per user request
         this.tmdbKey = 'ec87e3d1438c3e8193530d6b09b21c26';
         this.currentMatch = null;
         
-        // State
+        // UI State
         this.selectedSwipeGenre = 'all';
         this.selectedBattleGenre = 'all';
         this.searchTimeout = null;
         this.RECURRENCE_DELAY = 48 * 60 * 60 * 1000;
-        this.shuffledDeck = []; 
-        this.loadedPages = {
-            'movie/popular': 0,
-            'movie/top_rated': 0,
-            'discover/movie': 0,
-            'movie/now_playing': 0
-        };
         this.isFetching = false;
         
         this.cardStack = document.getElementById('card-stack');
@@ -52,116 +57,125 @@ class MovieRanker {
         this.init();
     }
 
+    // Shortcut to current mode's data
+    get data() { return this.contentType === 'movie' ? this.movieData : this.tvData; }
+
     async init() {
         this.loadFromLocalStorage();
         this.setupNavigation();
         this.setupSwipeEvents();
         this.setupSearchEvents();
         this.setupGeneralEvents();
+        this.setupModeToggle();
         this.renderGenreSelectors();
         this.renderCurrentView();
         
         if (this.tmdbKey) {
-            await this.fetchMoviesMixed();
+            await this.fetchContentMixed();
         }
-        this.shuffleDeck(); 
     }
 
     // --- Data Management ---
-    async fetchMoviesMixed(batchSize = 5) {
+    async fetchContentMixed(batchSize = 5) {
         if (!this.tmdbKey || this.isFetching) return;
         this.isFetching = true;
         
         try {
-            const endpoints = [
-                'movie/popular',
-                'movie/top_rated',
-                'discover/movie',
-                'movie/now_playing'
-            ];
+            const endpoints = this.contentType === 'movie' 
+                ? [ 'movie/popular', 'movie/top_rated', 'discover/movie', 'movie/now_playing' ]
+                : [ 'tv/popular', 'tv/top_rated', 'discover/tv', 'tv/on_the_air', 'tv/israeli' ];
 
             for (const endpoint of endpoints) {
-                // Fetch several pages at once
                 for (let i = 0; i < batchSize; i++) {
-                    this.loadedPages[endpoint]++;
-                    const page = this.loadedPages[endpoint];
+                    const pages = this.data.pages;
+                    pages[endpoint]++;
+                    const page = pages[endpoint];
                     
                     let extraParams = '';
                     if (endpoint.includes('discover')) {
                         extraParams = '&sort_by=vote_count.desc&vote_count.gte=100';
-                    } else if (endpoint.includes('popular')) {
-                        // Mix it up after page 10 to find hidden gems
-                        if (page > 10) extraParams = '&sort_by=popularity.desc';
+                    } else if (endpoint === 'tv/israeli') {
+                        // Special Israeli TV Discovery
+                        const urlIL = `https://api.themoviedb.org/3/discover/tv?api_key=${this.tmdbKey}&language=he-IL&with_origin_country=IL&page=${page}&sort_by=popularity.desc`;
+                        await this.fetchAndAdd(urlIL);
+                        continue;
                     }
                     
-                    const url = `https://api.themoviedb.org/3/${endpoint}?api_key=${this.tmdbKey}&language=he-IL&page=${page}${extraParams}`;
-                    const response = await fetch(url);
-                    const data = await response.json();
-                    
-                    if (data.results) {
-                        data.results.forEach(movie => {
-                            // Filter for English and Hebrew films as requested
-                            if (movie.original_language === 'en' || movie.original_language === 'he') {
-                                this.addMovieToPool({
-                                    id: movie.id,
-                                    title: movie.original_title,
-                                    hebrew_title: movie.title,
-                                    poster_path: movie.poster_path,
-                                    genre_ids: movie.genre_ids,
-                                    release_date: movie.release_date
-                                });
-                            }
-                        });
-                    }
+                    const baseEndpoint = endpoint === 'tv/israeli' ? 'discover/tv' : endpoint;
+                    const url = `https://api.themoviedb.org/3/${baseEndpoint}?api_key=${this.tmdbKey}&language=he-IL&page=${page}${extraParams}`;
+                    await this.fetchAndAdd(url);
                 }
             }
-            this.shuffleDeck();
             this.renderCurrentView();
-        } catch (e) {
-            console.error("Failed to fetch from TMDB:", e);
-        } finally {
-            this.isFetching = false;
+        } catch (e) { console.error("Fetch failed:", e); } finally { this.isFetching = false; }
+    }
+
+    async fetchAndAdd(url) {
+        const res = await fetch(url);
+        const data = await res.json();
+        if (data.results) {
+            data.results.forEach(item => {
+                // Filter out Reality TV (ID 10764)
+                if (this.contentType === 'tv' && item.genre_ids && item.genre_ids.includes(10764)) return;
+
+                // Strict language/origin filter: English, Hebrew, or specifically Israeli
+                const isEnglishOrHebrew = item.original_language === 'en' || item.original_language === 'he';
+                const isIsraeli = this.contentType === 'tv' && item.origin_country && item.origin_country.includes('IL');
+                
+                // "Global Hit" Exception: High vote count and rating (e.g., Squid Game, Money Heist)
+                const isGlobalHit = item.vote_count >= 1000 && item.vote_average >= 7.5;
+                
+                if (isEnglishOrHebrew || isIsraeli || isGlobalHit) {
+                    this.addMovieToPool({
+                        id: item.id,
+                        title: item.original_title || item.original_name,
+                        hebrew_title: item.title || item.name,
+                        poster_path: item.poster_path,
+                        genre_ids: item.genre_ids,
+                        release_date: item.release_date || item.first_air_date,
+                        vote_average: item.vote_average,
+                        vote_count: item.vote_count
+                    });
+                }
+            });
         }
     }
 
-    addMovieToPool(movie) {
-        if (!this.allMovies.find(m => m.id === movie.id)) {
-            this.allMovies.push(movie);
-            if (!this.eloScores[movie.id]) this.eloScores[movie.id] = 1000;
+    addMovieToPool(item) {
+        if (!this.data.all.find(m => m.id === item.id)) {
+            this.data.all.push(item);
+            if (!this.data.elo[item.id]) this.data.elo[item.id] = 1000;
         }
     }
 
     loadFromLocalStorage() {
-        const savedData = localStorage.getItem('movieRankerData');
-        if (savedData) {
-            const data = JSON.parse(savedData);
-            this.seenMovies = data.seenMovies || [];
-            this.notSeenHistory = data.notSeenHistory || {};
-            this.watchlist = data.watchlist || [];
-            this.eloScores = data.eloScores || {};
-            if (data.tmdbKey && data.tmdbKey.length > 10) this.tmdbKey = data.tmdbKey;
+        const saved = localStorage.getItem('kenlo_data_v2');
+        if (saved) {
+            const parsed = JSON.parse(saved);
+            this.movieData = parsed.movieData || this.movieData;
+            this.tvData = parsed.tvData || this.tvData;
+            this.contentType = parsed.lastMode || 'movie';
+            
+            // Sync toggle UI
+            const radio = document.getElementById(`mode-${this.contentType}`);
+            if (radio) radio.checked = true;
+            this.updateTheme();
         }
-
-        this.allMovies.forEach(m => {
-            if (!this.eloScores[m.id]) this.eloScores[m.id] = 1000;
-        });
     }
 
     saveToLocalStorage() {
         const data = {
-            seenMovies: this.seenMovies,
-            notSeenHistory: this.notSeenHistory,
-            watchlist: this.watchlist,
-            eloScores: this.eloScores,
-            tmdbKey: this.tmdbKey
+            movieData: this.movieData,
+            tvData: this.tvData,
+            lastMode: this.contentType
         };
-        localStorage.setItem('movieRankerData', JSON.stringify(data));
+        localStorage.setItem('kenlo_data_v2', JSON.stringify(data));
         this.updateCounts();
     }
 
     updateCounts() {
         const seenSpan = document.getElementById('seen-count');
-        if (seenSpan) seenSpan.textContent = this.seenMovies.length;
+        if (seenSpan) seenSpan.textContent = this.data.seen.length;
     }
 
     // --- Navigation & UI ---
@@ -185,6 +199,31 @@ class MovieRanker {
         if (targetView) targetView.classList.add('active');
         
         this.renderCurrentView();
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    }
+
+    setupModeToggle() {
+        const radios = document.getElementsByName('content-type');
+        radios.forEach(radio => {
+            radio.onchange = (e) => {
+                this.contentType = e.target.value;
+                this.updateTheme();
+                this.saveToLocalStorage();
+                this.renderCurrentView();
+                if (this.data.all.length < 50) {
+                    this.fetchContentMixed();
+                }
+            };
+        });
+    }
+
+    updateTheme() {
+        const container = document.querySelector('.app-container');
+        if (this.contentType === 'tv') container.classList.add('mode-tv');
+        else container.classList.remove('mode-tv');
+        
+        const h1 = document.querySelector('#swipe-view h1');
+        if (h1) h1.textContent = this.contentType === 'movie' ? 'ראית או לא?' : 'ראית כבר?';
     }
 
     renderGenreSelectors() {
@@ -241,22 +280,22 @@ class MovieRanker {
         this.cardStack.innerHTML = '';
         const now = Date.now();
         
-        const filtered = this.shuffledDeck.filter(movie => {
-            const isSeen = this.seenMovies.find(m => m.id === movie.id);
-            const historyTime = this.notSeenHistory[movie.id];
-            const isResting = historyTime && (Date.now() - historyTime < this.RECURRENCE_DELAY);
+        const filtered = this.data.all.filter(movie => {
+            const isSeen = this.data.seen.find(m => m.id === movie.id);
+            const historyTime = this.data.notSeen[movie.id];
+            const isResting = historyTime && (now - historyTime < this.RECURRENCE_DELAY);
             const matchesGenre = this.selectedSwipeGenre === 'all' || 
                                (movie.genre_ids && movie.genre_ids.includes(parseInt(this.selectedSwipeGenre)));
             return !isSeen && !isResting && matchesGenre;
-        });
+        }).sort(() => Math.random() - 0.5);
 
         // Trigger background fetch if deck is low
         if (filtered.length < 15 && !this.isFetching) {
-            this.fetchMoviesMixed(4); // Load 4 more pages for each category
+            this.fetchContentMixed(4);
         }
 
         if (filtered.length === 0) {
-            this.cardStack.innerHTML = '<div class="stack-placeholder">טוען סרטים נוספים... נסה לשנות ז\'אנר או המתן רגע.</div>';
+            this.cardStack.innerHTML = '<div class="stack-placeholder">טוען תוכן נוסף... נסה לשנות ז\'אנר או המתן רגע.</div>';
             return;
         }
 
@@ -266,16 +305,12 @@ class MovieRanker {
         });
     }
 
-    shuffleDeck() {
-        this.shuffledDeck = [...this.allMovies].sort(() => Math.random() - 0.5);
-    }
-
     createMovieCard(movie, isTop) {
         const card = document.createElement('div');
         card.className = 'movie-card';
         card.dataset.id = movie.id;
         const posterUrl = movie.poster_path ? `https://image.tmdb.org/t/p/w500${movie.poster_path}` : 'https://via.placeholder.com/500x750?text=No+Poster';
-        const onWatchlist = this.watchlist.includes(movie.id);
+        const onWatchlist = this.data.watchlist.includes(movie.id);
 
         card.innerHTML = `
             ${onWatchlist ? '<div class="watchlist-badge">ברשימת צפייה</div>' : ''}
@@ -328,8 +363,8 @@ class MovieRanker {
 
     handleWatchlistAction(el) {
         const id = parseInt(el.dataset.id);
-        if (!this.watchlist.includes(id)) {
-            this.watchlist.push(id);
+        if (!this.data.watchlist.includes(id)) {
+            this.data.watchlist.push(id);
             this.saveToLocalStorage();
             el.classList.add('card-save-watchlist');
             setTimeout(() => { el.classList.remove('card-save-watchlist'); el.style.transform = ''; this.renderSwipe(); }, 500);
@@ -340,16 +375,17 @@ class MovieRanker {
 
     swipe(el, direction) {
         const id = parseInt(el.dataset.id);
-        const movie = this.allMovies.find(m => m.id === id);
-        if (direction === 'right') {
-            el.classList.add('card-exit-right');
-            if (!this.seenMovies.find(m => m.id === id)) this.seenMovies.push(movie);
+        const isLeft = direction === 'left';
+        if (isLeft) {
+            this.data.notSeen[id] = Date.now();
         } else {
-            el.classList.add('card-exit-left');
-            this.notSeenHistory[id] = Date.now();
+            const movie = this.data.all.find(m => m.id == id);
+            if (movie && !this.data.seen.find(s => s.id == id)) {
+                this.data.seen.push(movie);
+            }
         }
         this.saveToLocalStorage();
-        setTimeout(() => this.renderSwipe(), 300);
+        this.renderSwipe();
     }
 
     setupSwipeEvents() {
@@ -393,7 +429,7 @@ class MovieRanker {
             } catch (e) { console.error(e); }
         }
 
-        const local = this.allMovies.filter(m => 
+        const local = this.data.all.filter(m => 
             m.title.toLowerCase().includes(query.toLowerCase()) || 
             (m.hebrew_title && m.hebrew_title.includes(query))
         );
@@ -427,8 +463,8 @@ class MovieRanker {
                     release_date: movie.release_date
                 };
                 this.addMovieToPool(movieObj);
-                if (!this.seenMovies.find(m => m.id === movie.id)) {
-                    this.seenMovies.push(movieObj);
+                if (!this.data.seen.find(m => m.id === movie.id)) {
+                    this.data.seen.push(movieObj);
                     this.saveToLocalStorage();
                     alert(`נוסף לדירוג: ${movieObj.hebrew_title}`);
                 }
@@ -476,10 +512,10 @@ class MovieRanker {
     }
 
     updateElo(idA, idB, outcome) {
-        const Ra = this.eloScores[idA] || 1000, Rb = this.eloScores[idB] || 1000, K = 32;
+        const Ra = this.data.elo[idA] || 1000, Rb = this.data.elo[idB] || 1000, K = 32;
         const Ea = 1 / (1 + Math.pow(10, (Rb - Ra) / 400)), Eb = 1 / (1 + Math.pow(10, (Ra - Rb) / 400));
-        this.eloScores[idA] = Math.round(Ra + K * (outcome - Ea));
-        this.eloScores[idB] = Math.round(Rb + (K * ((1 - outcome) - Eb)));
+        this.data.elo[idA] = Math.round(Ra + K * (outcome - Ea));
+        this.data.elo[idB] = Math.round(Rb + (K * ((1 - outcome) - Eb)));
     }
 
     // --- Stats & Watchlist ---
@@ -487,10 +523,10 @@ class MovieRanker {
         const tbody = document.getElementById('leaderboard-body');
         if (!tbody) return;
         tbody.innerHTML = '';
-        [...this.seenMovies].sort((a,b) => (this.eloScores[b.id]||1000) - (this.eloScores[a.id]||1000)).forEach((m, i) => {
+        [...this.data.seen].sort((a,b) => (this.data.elo[b.id]||1000) - (this.data.elo[a.id]||1000)).forEach((m, i) => {
             const url = m.poster_path ? `https://image.tmdb.org/t/p/w92${m.poster_path}` : 'https://via.placeholder.com/40x60';
             const tr = document.createElement('tr');
-            tr.innerHTML = `<td>${i+1}</td><td><img src="${url}" class="mini-poster"></td><td><strong>${m.hebrew_title}</strong><br><small>${m.title}</small></td><td><span class="rank-badge">${this.eloScores[m.id]}</span></td>`;
+            tr.innerHTML = `<td>${i+1}</td><td><img src="${url}" class="mini-poster"></td><td><strong>${m.hebrew_title}</strong><br><small>${m.title}</small></td><td><span class="rank-badge">${this.data.elo[m.id]}</span></td>`;
             tbody.appendChild(tr);
         });
     }
@@ -499,7 +535,7 @@ class MovieRanker {
         const tbody = document.getElementById('watchlist-body');
         if (!tbody) return;
         tbody.innerHTML = '';
-        this.allMovies.filter(m => this.watchlist.includes(m.id)).forEach(m => {
+        this.data.all.filter(m => this.data.watchlist.includes(m.id)).forEach(m => {
             const url = m.poster_path ? `https://image.tmdb.org/t/p/w92${m.poster_path}` : 'https://via.placeholder.com/40x60';
             const tr = document.createElement('tr');
             tr.innerHTML = `<td><img src="${url}" class="mini-poster"></td><td><strong>${m.hebrew_title}</strong><br><small>${m.title}</small></td><td><button class="btn-danger btn-sm" onclick="window.removeWatchlist(${m.id})">הסר</button></td>`;
@@ -508,7 +544,23 @@ class MovieRanker {
     }
 
     registerGlobals() {
-        window.removeWatchlist = (id) => { this.watchlist = this.watchlist.filter(wid => wid !== id); this.saveToLocalStorage(); this.renderWatchlist(); };
+        window.removeWatchlist = (id) => { 
+            this.data.watchlist = this.data.watchlist.filter(wid => wid !== id); 
+            this.saveToLocalStorage(); 
+            this.renderWatchlist(); 
+        };
+        
+        window.toggleWatchlist = (id) => {
+            if (this.data.watchlist.includes(id)) {
+                this.data.watchlist = this.data.watchlist.filter(wid => wid !== id);
+                this.showToast('הוסר מרשימת הצפייה');
+            } else {
+                this.data.watchlist.push(id);
+                this.showToast('נוסף לרשימת הצפייה');
+            }
+            this.saveToLocalStorage();
+            this.renderCurrentView();
+        };
     }
 
     setupGeneralEvents() {
@@ -518,45 +570,47 @@ class MovieRanker {
         const copyBtn = document.getElementById('copy-stats');
         if (copyBtn) {
             copyBtn.onclick = () => {
-                const sorted = [...this.seenMovies].sort((a,b) => (this.eloScores[b.id]||1000) - (this.eloScores[a.id]||1000));
+                const sorted = [...this.data.seen].sort((a,b) => (this.data.elo[b.id]||1000) - (this.data.elo[a.id]||1000));
                 if (sorted.length === 0) {
-                    this.showToast('אין עדיין סרטים מדורגים להעתקה!');
+                    this.showToast('אין עדיין תוכן מדורג להעתקה!');
                     return;
                 }
                 
-                let text = "--- דירוג הסרטים שלי ב-KenLo ---\n\n";
+                let text = `--- דירוג ה${this.contentType === 'movie' ? 'סרטים' : 'סדרות'} שלי ב-KenLo ---\n\n`;
                 sorted.forEach((m, i) => {
-                    const score = this.eloScores[m.id] || 1000;
+                    const score = this.data.elo[m.id] || 1000;
                     text += `${i+1}. ${m.hebrew_title || m.title} (${Math.round(score)} Elo)\n`;
                 });
                 
-                if (this.watchlist.length > 0) {
-                    text = text.trim() + "\n\n--- רשימת צפייה ---\n";
-                    this.allMovies.filter(m => this.watchlist.includes(m.id)).forEach(m => {
+                if (this.data.watchlist.length > 0) {
+                    text = text.trim() + `\n\n--- רשימת צפייה (${this.contentType === 'movie' ? 'סרטים' : 'סדרות'}) ---\n`;
+                    this.data.all.filter(m => this.data.watchlist.includes(m.id)).forEach(m => {
                         text += `- ${m.hebrew_title || m.title}\n`;
                     });
                 }
 
                 navigator.clipboard.writeText(text).then(() => {
                     this.showToast('הרשימה הועתקה! עכשיו אפשר להדביק ב-Gemini');
-                }).catch(err => {
-                    this.showToast('שגיאה בהעתקה. נחוץ חיבור מאובטח (HTTPS)');
                 });
             };
         }
 
         document.getElementById('export-data').onclick = () => {
             const blob = new Blob([JSON.stringify({
-                seen: this.seenMovies.map(m => ({title: m.title, score: this.eloScores[m.id]})),
-                watchlist: this.allMovies.filter(m => this.watchlist.includes(m.id)).map(m => m.title),
-                genres: GENRES
+                movieData: this.movieData,
+                tvData: this.tvData
             }, null, 2)], {type:'application/json'});
-            const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'kenlo_backup.json'; a.click();
+            const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'kenlo_full_backup.json'; a.click();
         };
         
         document.getElementById('reset-app').onclick = () => { 
-            if (confirm('בטוח שתרצה למחוק את כל הדירוגים והנתונים? הפעולה לא ניתנת לביטול.')) { 
-                localStorage.removeItem('movieRankerData'); 
+            if (confirm(`בטוח שתרצה למחוק את כל נתוני ה${this.contentType === 'movie' ? 'סרטים' : 'סדרות'}?`)) { 
+                if (this.contentType === 'movie') {
+                    this.movieData = { all: [], seen: [], notSeen: {}, watchlist: [], el: {}, pages: { 'movie/popular':0, 'movie/top_rated':0, 'discover/movie':0, 'movie/now_playing':0 } };
+                } else {
+                    this.tvData = { all: [], seen: [], notSeen: {}, watchlist: [], el: {}, pages: { 'tv/popular':0, 'tv/top_rated':0, 'discover/tv':0, 'tv/on_the_air':0, 'tv/israeli':0 } };
+                }
+                this.saveToLocalStorage(); 
                 location.reload(); 
             } 
         };
