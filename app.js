@@ -37,6 +37,13 @@ class MovieRanker {
         this.searchTimeout = null;
         this.RECURRENCE_DELAY = 48 * 60 * 60 * 1000;
         this.shuffledDeck = []; 
+        this.loadedPages = {
+            'movie/popular': 0,
+            'movie/top_rated': 0,
+            'discover/movie': 0,
+            'movie/now_playing': 0
+        };
+        this.isFetching = false;
         
         this.cardStack = document.getElementById('card-stack');
         this.views = document.querySelectorAll('.view');
@@ -61,42 +68,59 @@ class MovieRanker {
     }
 
     // --- Data Management ---
-    async fetchMoviesMixed() {
-        if (!this.tmdbKey) return;
+    async fetchMoviesMixed(batchSize = 5) {
+        if (!this.tmdbKey || this.isFetching) return;
+        this.isFetching = true;
+        
         try {
             const endpoints = [
                 'movie/popular',
                 'movie/top_rated',
-                'discover/movie' 
+                'discover/movie',
+                'movie/now_playing'
             ];
 
             for (const endpoint of endpoints) {
-                const page = Math.floor(Math.random() * 10) + 1;
-                const extraParams = endpoint.includes('discover') ? '&sort_by=vote_count.desc&vote_count.gte=500' : '';
-                
-                const url = `https://api.themoviedb.org/3/${endpoint}?api_key=${this.tmdbKey}&language=he-IL&page=${page}${extraParams}`;
-                const response = await fetch(url);
-                const data = await response.json();
-                
-                if (data.results) {
-                    data.results.forEach(movie => {
-                        if (movie.original_language === 'en' || movie.original_language === 'he') {
-                            this.addMovieToPool({
-                                id: movie.id,
-                                title: movie.original_title,
-                                hebrew_title: movie.title,
-                                poster_path: movie.poster_path,
-                                genre_ids: movie.genre_ids,
-                                release_date: movie.release_date
-                            });
-                        }
-                    });
-                    this.shuffleDeck(); 
+                // Fetch several pages at once
+                for (let i = 0; i < batchSize; i++) {
+                    this.loadedPages[endpoint]++;
+                    const page = this.loadedPages[endpoint];
+                    
+                    let extraParams = '';
+                    if (endpoint.includes('discover')) {
+                        extraParams = '&sort_by=vote_count.desc&vote_count.gte=100';
+                    } else if (endpoint.includes('popular')) {
+                        // Mix it up after page 10 to find hidden gems
+                        if (page > 10) extraParams = '&sort_by=popularity.desc';
+                    }
+                    
+                    const url = `https://api.themoviedb.org/3/${endpoint}?api_key=${this.tmdbKey}&language=he-IL&page=${page}${extraParams}`;
+                    const response = await fetch(url);
+                    const data = await response.json();
+                    
+                    if (data.results) {
+                        data.results.forEach(movie => {
+                            // Filter for English and Hebrew films as requested
+                            if (movie.original_language === 'en' || movie.original_language === 'he') {
+                                this.addMovieToPool({
+                                    id: movie.id,
+                                    title: movie.original_title,
+                                    hebrew_title: movie.title,
+                                    poster_path: movie.poster_path,
+                                    genre_ids: movie.genre_ids,
+                                    release_date: movie.release_date
+                                });
+                            }
+                        });
+                    }
                 }
             }
+            this.shuffleDeck();
             this.renderCurrentView();
         } catch (e) {
             console.error("Failed to fetch from TMDB:", e);
+        } finally {
+            this.isFetching = false;
         }
     }
 
@@ -217,23 +241,26 @@ class MovieRanker {
         this.cardStack.innerHTML = '';
         const now = Date.now();
         
-        const undecided = this.shuffledDeck.filter(m => {
-            if (this.seenMovies.find(s => s.id === m.id)) return false;
-            const lastNotSeen = this.notSeenHistory[m.id];
-            if (lastNotSeen && (now - lastNotSeen < this.RECURRENCE_DELAY)) return false;
-
-            if (this.selectedSwipeGenre !== 'all') {
-                return m.genre_ids && m.genre_ids.includes(parseInt(this.selectedSwipeGenre));
-            }
-            return true;
+        const filtered = this.shuffledDeck.filter(movie => {
+            const isSeen = this.seenMovies.find(m => m.id === movie.id);
+            const historyTime = this.notSeenHistory[movie.id];
+            const isResting = historyTime && (Date.now() - historyTime < this.RECURRENCE_DELAY);
+            const matchesGenre = this.selectedSwipeGenre === 'all' || 
+                               (movie.genre_ids && movie.genre_ids.includes(parseInt(this.selectedSwipeGenre)));
+            return !isSeen && !isResting && matchesGenre;
         });
 
-        if (undecided.length === 0) {
-            this.cardStack.innerHTML = '<div class="stack-placeholder">נגמרו הסרטים! נסה ז\'אנר אחר או המתן לחזרה של סרטים שדילגת עליהם.</div>';
+        // Trigger background fetch if deck is low
+        if (filtered.length < 15 && !this.isFetching) {
+            this.fetchMoviesMixed(4); // Load 4 more pages for each category
+        }
+
+        if (filtered.length === 0) {
+            this.cardStack.innerHTML = '<div class="stack-placeholder">טוען סרטים נוספים... נסה לשנות ז\'אנר או המתן רגע.</div>';
             return;
         }
 
-        undecided.slice(0, 3).reverse().forEach((movie, index, arr) => {
+        filtered.slice(0, 3).reverse().forEach((movie, index, arr) => {
             const isTop = (index === arr.length - 1);
             this.cardStack.appendChild(this.createMovieCard(movie, isTop));
         });
@@ -485,15 +512,67 @@ class MovieRanker {
 
     setupGeneralEvents() {
         this.registerGlobals();
+        
+        // Copy formatted text for Gemini
+        const copyBtn = document.getElementById('copy-stats');
+        if (copyBtn) {
+            copyBtn.onclick = () => {
+                const sorted = [...this.seenMovies].sort((a,b) => (this.eloScores[b.id]||1000) - (this.eloScores[a.id]||1000));
+                if (sorted.length === 0) {
+                    this.showToast('אין עדיין סרטים מדורגים להעתקה!');
+                    return;
+                }
+                
+                let text = "--- דירוג הסרטים שלי ב-KenLo ---\n\n";
+                sorted.forEach((m, i) => {
+                    const score = this.eloScores[m.id] || 1000;
+                    text += `${i+1}. ${m.hebrew_title || m.title} (${Math.round(score)} Elo)\n`;
+                });
+                
+                if (this.watchlist.length > 0) {
+                    text = text.trim() + "\n\n--- רשימת צפייה ---\n";
+                    this.allMovies.filter(m => this.watchlist.includes(m.id)).forEach(m => {
+                        text += `- ${m.hebrew_title || m.title}\n`;
+                    });
+                }
+
+                navigator.clipboard.writeText(text).then(() => {
+                    this.showToast('הרשימה הועתקה! עכשיו אפשר להדביק ב-Gemini');
+                }).catch(err => {
+                    this.showToast('שגיאה בהעתקה. נחוץ חיבור מאובטח (HTTPS)');
+                });
+            };
+        }
+
         document.getElementById('export-data').onclick = () => {
             const blob = new Blob([JSON.stringify({
                 seen: this.seenMovies.map(m => ({title: m.title, score: this.eloScores[m.id]})),
                 watchlist: this.allMovies.filter(m => this.watchlist.includes(m.id)).map(m => m.title),
                 genres: GENRES
             }, null, 2)], {type:'application/json'});
-            const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'movie_rankings.json'; a.click();
+            const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'kenlo_backup.json'; a.click();
         };
-        document.getElementById('reset-app').onclick = () => { if (confirm('בטוח?')) { localStorage.removeItem('movieRankerData'); location.reload(); } };
+        
+        document.getElementById('reset-app').onclick = () => { 
+            if (confirm('בטוח שתרצה למחוק את כל הדירוגים והנתונים? הפעולה לא ניתנת לביטול.')) { 
+                localStorage.removeItem('movieRankerData'); 
+                location.reload(); 
+            } 
+        };
+    }
+
+    showToast(msg) {
+        const container = document.getElementById('toast-container');
+        if (!container) return;
+        const toast = document.createElement('div');
+        toast.className = 'toast';
+        toast.textContent = msg;
+        container.appendChild(toast);
+        setTimeout(() => toast.classList.add('show'), 100);
+        setTimeout(() => {
+            toast.classList.remove('show');
+            setTimeout(() => toast.remove(), 500);
+        }, 3500);
     }
 }
 
