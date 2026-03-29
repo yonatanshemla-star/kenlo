@@ -125,18 +125,18 @@ body {
     height: calc(100% - 6px);
     border-radius: 9px;
     transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-    left: 3px;
+    right: 3px;
     z-index: 1;
 }
 
 #mode-movie:checked ~ .mode-slider {
-    left: 3px;
+    right: 3px;
     background: #818cf8;
     box-shadow: 0 0 15px rgba(129, 140, 248, 0.4);
 }
 
 #mode-tv:checked ~ .mode-slider {
-    left: calc(50%);
+    right: calc(50%);
     background: #22d3ee;
     box-shadow: 0 0 15px rgba(34, 211, 238, 0.4);
 }
