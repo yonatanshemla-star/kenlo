@@ -413,7 +413,7 @@ body {
     width: 100%;
     /* TMDB posters are 1:1.5. This math creates the exact height dynamically */
     height: calc(min(85vw, 320px) * 1.5); 
-    object-fit: contain; /* Failsafe */
+    object-fit: cover; /* Forces the image to snap exactly to frame boundaries */
     background-color: transparent; 
     pointer-events: none;
 }
