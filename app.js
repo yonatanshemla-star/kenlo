@@ -114,8 +114,9 @@ class MovieRanker {
                         extraParams = '&sort_by=vote_count.desc&vote_count.gte=100';
                         usePage = Math.floor(Math.random() * 200) + 1;
                     } else if (endpoint === 'tv/israeli') {
-                        // Special Israeli TV Discovery
-                        const urlIL = `https://api.themoviedb.org/3/discover/tv?api_key=${this.tmdbKey}&language=he-IL&with_origin_country=IL&page=${page}&sort_by=popularity.desc`;
+                        // Keep Israeli TV to the top 5 pages where the actual hits live
+                        const ilPage = Math.floor(Math.random() * 5) + 1;
+                        const urlIL = `https://api.themoviedb.org/3/discover/tv?api_key=${this.tmdbKey}&language=he-IL&with_origin_country=IL&page=${ilPage}&sort_by=popularity.desc`;
                         await this.fetchAndAdd(urlIL);
                         continue;
                     }
@@ -358,12 +359,7 @@ class MovieRanker {
             
             if (!card) {
                 card = this.createMovieCard(movie, isTop);
-                // Insert at the bottom of the visual stack
-                if (this.cardStack.firstChild) {
-                    this.cardStack.insertBefore(card, this.cardStack.firstChild);
-                } else {
-                    this.cardStack.appendChild(card);
-                }
+                this.cardStack.appendChild(card);
             } else {
                 // Ensure top card is draggable
                 if (isTop && !card.dataset.draggable) {
@@ -371,6 +367,8 @@ class MovieRanker {
                     card.dataset.draggable = 'true';
                 }
             }
+            // Explicitly set z-index so the visually top card is strictly the one logically on top
+            card.style.zIndex = index + 10;
         });
     }
 
@@ -383,7 +381,7 @@ class MovieRanker {
 
         card.innerHTML = `
             ${onWatchlist ? '<div class="watchlist-badge">ברשימת צפייה</div>' : ''}
-            <img src="${posterUrl}" alt="${movie.title}">
+            <img src="${posterUrl}" alt="${movie.title}" style="object-fit: contain; background-color: #0f172a;">
             <div class="info">
                 <h2>${movie.hebrew_title || movie.title}</h2>
                 <div class="sub">${movie.title} ${movie.release_date ? '(' + movie.release_date.split('-')[0] + ')' : ''}</div>
