@@ -84,6 +84,13 @@ class MovieRanker {
     }
 
     // --- Data Management ---
+    shuffleArray(array) {
+        for (let i = array.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [array[i], array[j]] = [array[j], array[i]];
+        }
+    }
+
     async fetchContentMixed(batchSize = 5) {
         if (!this.tmdbKey || this.isFetching) return;
         this.isFetching = true;
@@ -100,8 +107,12 @@ class MovieRanker {
                     const page = pages[endpoint];
                     
                     let extraParams = '';
+                    let usePage = page;
+                    
+                    // Force random pages for "discover" to heavily mix eras (old and new)
                     if (endpoint.includes('discover')) {
                         extraParams = '&sort_by=vote_count.desc&vote_count.gte=100';
+                        usePage = Math.floor(Math.random() * 200) + 1;
                     } else if (endpoint === 'tv/israeli') {
                         // Special Israeli TV Discovery
                         const urlIL = `https://api.themoviedb.org/3/discover/tv?api_key=${this.tmdbKey}&language=he-IL&with_origin_country=IL&page=${page}&sort_by=popularity.desc`;
@@ -110,13 +121,13 @@ class MovieRanker {
                     }
                     
                     const baseEndpoint = endpoint === 'tv/israeli' ? 'discover/tv' : endpoint;
-                    const url = `https://api.themoviedb.org/3/${baseEndpoint}?api_key=${this.tmdbKey}&language=he-IL&page=${page}${extraParams}`;
+                    const url = `https://api.themoviedb.org/3/${baseEndpoint}?api_key=${this.tmdbKey}&language=he-IL&page=${usePage}${extraParams}`;
                     await this.fetchAndAdd(url);
                 }
             }
             
-            // Shuffle the deck ONCE after fetching so it remains stable during swipes
-            this.data.all.sort(() => Math.random() - 0.5);
+            // True shuffle of the entire deck so old and new are perfectly mixed
+            this.shuffleArray(this.data.all);
             
             this.renderCurrentView();
         } catch (e) { console.error("Fetch failed:", e); } finally { this.isFetching = false; }
