@@ -167,9 +167,9 @@ class MovieRanker {
     // --- Navigation & UI ---
     setupNavigation() {
         this.navLinks.forEach(link => {
-            link.addEventListener('click', () => {
+            link.addEventListener('click', (e) => {
                 const targetView = link.getAttribute('data-view');
-                this.switchView(targetView);
+                if (targetView) this.switchView(targetView);
             });
         });
     }
@@ -458,6 +458,7 @@ class MovieRanker {
         while (idxB === idxA) idxB = Math.floor(Math.random() * pool.length);
         this.currentMatch = { a: pool[idxA], b: pool[idxB] };
 
+        // Reset arena classes before rendering new movies
         arena.innerHTML = `<div class="battle-card" id="movie-a"></div><div class="vs">נגד</div><div class="battle-card" id="movie-b"></div>`;
         this.renderBattleCard('movie-a', this.currentMatch.a);
         this.renderBattleCard('movie-b', this.currentMatch.b);

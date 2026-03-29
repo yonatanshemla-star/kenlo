@@ -12,21 +12,10 @@
     <meta name="apple-mobile-web-app-title" content="KenLo">
     <link rel="apple-touch-icon" href="icon.png">
     <link rel="stylesheet" href="style.css">
+    <script src="https://unpkg.com/lucide@latest"></script>
 </head>
 <body>
     <div class="app-container">
-        <!-- Navigation -->
-        <nav class="main-nav">
-            <div class="logo">Ken<span>Lo</span></div>
-            <ul class="nav-links">
-                <li class="active" data-view="swipe">החלקה</li>
-                <li data-view="battle">קרב</li>
-                <li data-view="stats">תוצאות</li>
-                <li data-view="watchlist">לצפייה</li>
-                <li data-view="settings">הגדרות</li>
-            </ul>
-        </nav>
-
         <!-- Main Content Views -->
         <main class="content">
             <!-- Swipe View -->
@@ -46,11 +35,11 @@
                     <!-- Genre chips will be injected here -->
                 </div>
                 <div class="card-stack" id="card-stack">
-                    <div class="stack-placeholder">נגמרו הסרטים במאגר!</div>
+                    <div class="stack-placeholder">נגמרו הסרטים! טוען עוד...</div>
                 </div>
                 <div class="swipe-controls">
-                    <button class="btn-swipe right" id="swipe-yes">✓</button>
-                    <button class="btn-swipe left" id="swipe-no">✕</button>
+                    <button class="btn-swipe left" id="swipe-no"><i data-lucide="x"></i></button>
+                    <button class="btn-swipe right" id="swipe-yes"><i data-lucide="check"></i></button>
                 </div>
             </section>
 
@@ -78,10 +67,6 @@
             <section id="stats-view" class="view">
                 <div class="view-header">
                     <h1>הדירוג שלי</h1>
-                    <div class="stats-actions">
-                        <button class="btn-primary" id="copy-stats">העתק רשימה ל-Gemini</button>
-                        <button class="btn-secondary" id="export-data">ייצא JSON</button>
-                    </div>
                 </div>
                 <div class="leaderboard-container">
                     <table class="leaderboard">
@@ -90,7 +75,7 @@
                                 <th>#</th>
                                 <th>תמונה</th>
                                 <th>שם הסרט</th>
-                                <th>דירוג (Elo)</th>
+                                <th>Elo</th>
                             </tr>
                         </thead>
                         <tbody id="leaderboard-body">
@@ -103,7 +88,7 @@
             <!-- Watchlist View -->
             <section id="watchlist-view" class="view">
                 <div class="view-header">
-                    <h1>רשימת צפייה</h1>
+                    <h1>לצפייה</h1>
                     <p>סרטים שרצית לראות ביום מן הימים</p>
                 </div>
                 <div class="leaderboard-container">
@@ -124,9 +109,17 @@
             <!-- Settings View -->
             <section id="settings-view" class="view">
                 <div class="view-header">
-                    <h1>הגדרות</h1>
+                    <h1>הגדרות וייצוא</h1>
                 </div>
                 <div class="settings-form">
+                    <div class="settings-section">
+                        <h3>ייצוא נתונים</h3>
+                        <p>העתק את הרשימה שלך ל-Gemini או שמור גיבוי גולמי.</p>
+                        <div class="stats-actions">
+                            <button class="btn-primary" id="copy-stats">העתק רשימה ל-Gemini</button>
+                            <button class="btn-secondary" id="export-data">ייצא JSON (גיבוי)</button>
+                        </div>
+                    </div>
                     <div class="danger-zone">
                         <h3>מחיקת נתונים</h3>
                         <p>פעולה זו תמחק את כל הסרטים שסימנת והדירוגים שלהם.</p>
@@ -135,11 +128,45 @@
                 </div>
             </section>
         </main>
+
+        <!-- Bottom Navigation -->
+        <nav class="main-nav">
+            <ul class="nav-links">
+                <li class="active" data-view="swipe">
+                    <i data-lucide="layers"></i>
+                    <span class="nav-label">החלקה</span>
+                </li>
+                <li data-view="battle">
+                    <i data-lucide="swords"></i>
+                    <span class="nav-label">קרב</span>
+                </li>
+                <li data-view="stats">
+                    <i data-lucide="trophy"></i>
+                    <span class="nav-label">תוצאות</span>
+                </li>
+                <li data-view="watchlist">
+                    <i data-lucide="bookmark"></i>
+                    <span class="nav-label">לצפייה</span>
+                </li>
+                <li data-view="settings">
+                    <i data-lucide="settings"></i>
+                    <span class="nav-label">הגדרות</span>
+                </li>
+            </ul>
+        </nav>
     </div>
 
     <!-- Feedback Toasts -->
     <div id="toast-container"></div>
 
     <script src="app.js"></script>
+    <script>
+        // Initialize Lucide Icons after the page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            if (typeof lucide !== 'undefined') {
+                lucide.createIcons();
+            }
+        });
+    </script>
 </body>
 </html>
