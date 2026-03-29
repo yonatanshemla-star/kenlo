@@ -75,20 +75,25 @@ body {
     justify-content: space-between;
     align-items: center;
     padding: 15px 20px;
-    background: rgba(15, 23, 42, 0.5);
-    backdrop-filter: blur(10px);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    background: transparent;
+    direction: rtl; /* Enforce RTL layout strictly */
 }
 
 .logo {
     display: block;
-    font-size: 1.4rem;
+    font-size: 1.6em; /* Slightly larger */
     font-weight: 800;
     letter-spacing: -1px;
+    color: var(--text-primary);
 }
 
 .logo span {
     color: #818cf8;
+    transition: color 0.3s ease;
+}
+
+.app-container.mode-tv .logo span {
+    color: #22d3ee;
 }
 
 /* Mode Toggle */
