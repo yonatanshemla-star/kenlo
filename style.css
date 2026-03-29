@@ -71,41 +71,47 @@ body {
 
 /* App Header */
 .app-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 15px 20px;
+    position: relative;
+    height: 70px;
+    width: 100%;
     background: transparent;
-    direction: rtl; /* Enforce RTL layout strictly */
 }
 
-.logo {
-    display: block;
-    font-size: 1.6em; /* Slightly larger */
+.app-brand {
+    position: absolute;
+    right: 20px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 1.6rem;
     font-weight: 800;
     letter-spacing: -1px;
     color: var(--text-primary);
+    z-index: 10;
 }
 
-.logo span {
+.app-brand span {
     color: #818cf8;
     transition: color 0.3s ease;
 }
 
-.app-container.mode-tv .logo span {
+.app-container.mode-tv .app-brand span {
     color: #22d3ee;
 }
 
 /* Mode Toggle */
 .mode-toggle {
+    position: absolute;
+    left: 20px;
+    top: 50%;
+    transform: translateY(-50%);
     display: flex;
     background: rgba(30, 41, 59, 1);
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 12px;
     padding: 3px;
-    position: relative;
     width: 150px;
     height: 38px;
+    z-index: 10;
 }
 
 .mode-toggle input {
@@ -115,33 +121,41 @@ body {
 .mode-toggle label {
     flex: 1;
     text-align: center;
-    z-index: 2;
+    line-height: 30px;
     font-size: 0.85rem;
-    font-weight: 700;
+    font-weight: 600;
+    color: #94a3b8;
     cursor: pointer;
-    line-height: 32px;
-    transition: all 0.3s ease;
-    color: #475569;
+    position: relative;
+    z-index: 2;
+    transition: color 0.3s;
+}
+
+.mode-toggle input:checked + label {
+    color: #fff;
 }
 
 .mode-slider {
     position: absolute;
+    top: 3px;
+    right: 3px; /* Start on the right for "Movies" (RTL) */
     width: calc(50% - 3px);
-    height: calc(100% - 6px);
+    height: 30px;
+    background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%);
     border-radius: 9px;
-    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-    right: 3px;
     z-index: 1;
+    transition: transform 0.3s cubic-bezier(0.4, 0.0, 0.2, 1), background 0.3s, box-shadow 0.3s;
+    box-shadow: 0 2px 8px rgba(99, 102, 241, 0.4);
 }
 
 #mode-movie:checked ~ .mode-slider {
-    right: 3px;
+    transform: translateX(0);
     background: #818cf8;
     box-shadow: 0 0 15px rgba(129, 140, 248, 0.4);
 }
 
 #mode-tv:checked ~ .mode-slider {
-    right: calc(50%);
+    transform: translateX(-100%); /* Move left for "TV" (RTL) */
     background: #22d3ee;
     box-shadow: 0 0 15px rgba(34, 211, 238, 0.4);
 }
@@ -368,7 +382,7 @@ body {
 /* Swipe View */
 .card-stack {
     position: relative;
-    height: 520px; /* Increased height since categories are hidden */
+    height: calc(min(85vw, 320px) * 1.5 + 75px); /* Perfectly accommodate the exact 2:3 ratio of the poster + the info box */
     width: 100%;
     margin-top: 10px;
     display: flex;
@@ -377,18 +391,17 @@ body {
 
 .movie-card {
     position: absolute;
-    width: 320px; /* Slightly wider */
-    height: 100%; /* Stretch fully to stack */
-    max-height: none;
+    width: min(85vw, 320px); /* Responsive width */
+    height: auto; /* Let it scale its height naturally */
     background: var(--card-bg);
-    border-radius: 24px;
+    border-radius: 20px; /* Slightly softer corners */
     border: 1px solid var(--glass-border);
     backdrop-filter: var(--glass-effect);
     overflow: hidden;
     user-select: none;
     cursor: grab;
     transition: transform 0.1s ease-out;
-    box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+    box-shadow: 0 20px 40px rgba(0,0,0,0.5);
     display: flex;
     flex-direction: column;
     touch-action: none; /* Crucial for iOS swipe stability */
@@ -396,9 +409,10 @@ body {
 
 .movie-card img {
     width: 100%;
-    flex: 1;
-    object-fit: contain;
-    background-color: #0f172a; /* Seamless extension of the info box */
+    /* TMDB posters are 1:1.5. This math creates the exact height dynamically */
+    height: calc(min(85vw, 320px) * 1.5); 
+    object-fit: contain; /* Failsafe */
+    background-color: transparent; 
     pointer-events: none;
 }
 
