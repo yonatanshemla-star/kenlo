@@ -114,6 +114,10 @@ class MovieRanker {
                     await this.fetchAndAdd(url);
                 }
             }
+            
+            // Shuffle the deck ONCE after fetching so it remains stable during swipes
+            this.data.all.sort(() => Math.random() - 0.5);
+            
             this.renderCurrentView();
         } catch (e) { console.error("Fetch failed:", e); } finally { this.isFetching = false; }
     }
@@ -236,7 +240,13 @@ class MovieRanker {
         if (h1) h1.textContent = this.contentType === 'movie' ? 'ראית או לא?' : 'ראית כבר?';
         
         const battleDesc = document.getElementById('battle-desc');
-        if (battleDesc) battleDesc.textContent = `בחר את ה${this.getTerm()} המועדפת עליך מבין השניים`;
+        if (battleDesc) battleDesc.textContent = this.contentType === 'movie' ? 'בחר את הסרט המועדף עליך מבין השניים' : 'בחר את הסדרה המועדפת עליך מבין השתיים';
+
+        const searchInput = document.getElementById('movie-search');
+        if (searchInput) searchInput.placeholder = this.contentType === 'movie' ? 'חפש סרט להוספה מהירה...' : 'חפש סדרה להוספה מהירה...';
+        
+        const deleteDesc = document.getElementById('delete-desc');
+        if (deleteDesc) deleteDesc.textContent = this.contentType === 'movie' ? 'פעולה זו תמחק את כל הסרטים שסימנת והדירוגים שלהם.' : 'פעולה זו תמחק את כל הסדרות שסימנת והדירוגים שלהן.';
 
         const movieTh = document.querySelector('.leaderboard th:nth-child(3)');
         if (movieTh) movieTh.textContent = `שם ה${this.getTerm()}`;
@@ -306,7 +316,7 @@ class MovieRanker {
             const matchesGenre = this.selectedSwipeGenre === 'all' || 
                                (movie.genre_ids && movie.genre_ids.includes(parseInt(this.selectedSwipeGenre)));
             return !isSeen && !isResting && matchesGenre;
-        }).sort(() => Math.random() - 0.5);
+        });
 
         // Trigger background fetch if deck is low
         if (filtered.length < 15 && !this.isFetching) {
