@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KenLo - מדרג הסרטים שלי</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@300;400;700&family=Outfit:wght@300;400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Navigation -->
+        <nav class="main-nav">
+            <div class="logo">Ken<span>Lo</span></div>
+            <ul class="nav-links">
+                <li class="active" data-view="swipe">החלקה</li>
+                <li data-view="battle">קרב</li>
+                <li data-view="stats">תוצאות</li>
+                <li data-view="watchlist">לצפייה</li>
+                <li data-view="settings">הגדרות</li>
+            </ul>
+        </nav>
+
+        <!-- Main Content Views -->
+        <main class="content">
+            <!-- Swipe View -->
+            <section id="swipe-view" class="view active">
+                <div class="view-header">
+                    <h1>ראית או לא?</h1>
+                    <p>החלק ימינה אם ראית, שמאלה אם לא</p>
+                    <div class="header-actions">
+                        <div class="search-box">
+                            <input type="text" id="movie-search" placeholder="חפש סרט להוספה מהירה...">
+                            <div id="search-results" class="search-results"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="genre-selector" id="swipe-genre-filter">
+                    <button class="genre-chip active" data-genre="all">הכל</button>
+                    <!-- Genre chips will be injected here -->
+                </div>
+                <div class="card-stack" id="card-stack">
+                    <div class="stack-placeholder">נגמרו הסרטים במאגר!</div>
+                </div>
+                <div class="swipe-controls">
+                    <button class="btn-swipe right" id="swipe-yes">✓</button>
+                    <button class="btn-swipe left" id="swipe-no">✕</button>
+                </div>
+            </section>
+
+            <!-- Battle View -->
+            <section id="battle-view" class="view">
+                <div class="view-header">
+                    <h1>מי לוקח?</h1>
+                    <p>בחר את הסרט המועדף עליך מבין השניים</p>
+                </div>
+                <div class="battle-filters">
+                    <select id="battle-genre-filter">
+                        <option value="all">כל הז'אנרים</option>
+                        <!-- Options will be injected -->
+                    </select>
+                </div>
+                <div class="battle-arena" id="battle-arena">
+                    <div class="battle-card" id="movie-a"></div>
+                    <div class="vs">נגד</div>
+                    <div class="battle-card" id="movie-b"></div>
+                </div>
+                <div class="battle-info" id="battle-info">סימנת <span id="seen-count">0</span> סרטים עד כה</div>
+            </section>
+
+            <!-- Stats View -->
+            <section id="stats-view" class="view">
+                <div class="view-header">
+                    <h1>הדירוג שלי</h1>
+                    <div class="stats-actions">
+                        <button class="btn-secondary" id="export-data">ייצא נתונים ל-Gemini</button>
+                    </div>
+                </div>
+                <div class="leaderboard-container">
+                    <table class="leaderboard">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>תמונה</th>
+                                <th>שם הסרט</th>
+                                <th>דירוג (Elo)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="leaderboard-body">
+                            <!-- Rows will be added here -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Watchlist View -->
+            <section id="watchlist-view" class="view">
+                <div class="view-header">
+                    <h1>רשימת צפייה</h1>
+                    <p>סרטים שרצית לראות ביום מן הימים</p>
+                </div>
+                <div class="leaderboard-container">
+                    <table class="leaderboard">
+                        <thead>
+                            <tr>
+                                <th>תמונה</th>
+                                <th>שם הסרט</th>
+                                <th>פעולות</th>
+                            </tr>
+                        </thead>
+                        <tbody id="watchlist-body">
+                            <!-- Rows -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+            <!-- Settings View -->
+            <section id="settings-view" class="view">
+                <div class="view-header">
+                    <h1>הגדרות</h1>
+                </div>
+                <div class="settings-form">
+                    <div class="danger-zone">
+                        <h3>מחיקת נתונים</h3>
+                        <p>פעולה זו תמחק את כל הסרטים שסימנת והדירוגים שלהם.</p>
+                        <button class="btn-danger" id="reset-app">אפס הכל</button>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Feedback Toasts -->
+    <div id="toast-container"></div>
+
+    <script type="module" src="app.js"></script>
+</body>
+</html>
