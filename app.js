@@ -317,16 +317,13 @@ class MovieRanker {
 
     // --- Swipe Logic ---
     renderSwipe() {
-        this.cardStack.innerHTML = '';
         const now = Date.now();
-        
         const filtered = this.data.all.filter(movie => {
             const isSeen = this.data.seen.find(m => m.id === movie.id);
             const historyTime = this.data.notSeen[movie.id];
             const isResting = historyTime && (now - historyTime < this.RECURRENCE_DELAY);
-            const matchesGenre = this.selectedSwipeGenre === 'all' || 
-                               (movie.genre_ids && movie.genre_ids.includes(parseInt(this.selectedSwipeGenre)));
-            return !isSeen && !isResting && matchesGenre;
+            // No category filter by default anymore since it's hidden
+            return !isSeen && !isResting;
         });
 
         // Trigger background fetch if deck is low
@@ -335,13 +332,45 @@ class MovieRanker {
         }
 
         if (filtered.length === 0) {
-            this.cardStack.innerHTML = '<div class="stack-placeholder">טוען תוכן נוסף... נסה לשנות ז\'אנר או המתן רגע.</div>';
+            this.cardStack.innerHTML = '<div class="stack-placeholder">טוען תוכן נוסף... המתן רגע.</div>';
             return;
         }
 
-        filtered.slice(0, 3).reverse().forEach((movie, index, arr) => {
+        const top3 = filtered.slice(0, 3).reverse();
+        const currentIds = top3.map(m => m.id);
+
+        // 1. Remove cards no longer in the top 3 (e.g., swiped ones)
+        Array.from(this.cardStack.children).forEach(card => {
+            if (card.classList && card.classList.contains('stack-placeholder')) {
+                card.remove(); return;
+            }
+            if (!currentIds.includes(parseInt(card.dataset.id)) || 
+                card.classList.contains('card-exit-left') || 
+                card.classList.contains('card-exit-right')) {
+                card.remove();
+            }
+        });
+
+        // 2. Add missing cards and configure top draggable
+        top3.forEach((movie, index, arr) => {
             const isTop = (index === arr.length - 1);
-            this.cardStack.appendChild(this.createMovieCard(movie, isTop));
+            let card = Array.from(this.cardStack.children).find(c => parseInt(c.dataset.id) === movie.id);
+            
+            if (!card) {
+                card = this.createMovieCard(movie, isTop);
+                // Insert at the bottom of the visual stack
+                if (this.cardStack.firstChild) {
+                    this.cardStack.insertBefore(card, this.cardStack.firstChild);
+                } else {
+                    this.cardStack.appendChild(card);
+                }
+            } else {
+                // Ensure top card is draggable
+                if (isTop && !card.dataset.draggable) {
+                    this.makeDraggable(card);
+                    card.dataset.draggable = 'true';
+                }
+            }
         });
     }
 
@@ -360,9 +389,13 @@ class MovieRanker {
                 <div class="sub">${movie.title} ${movie.release_date ? '(' + movie.release_date.split('-')[0] + ')' : ''}</div>
             </div>
         `;
-        if (isTop) this.makeDraggable(card);
+        if (isTop) {
+            this.makeDraggable(card);
+            card.dataset.draggable = 'true';
+        }
         return card;
     }
+
 
     makeDraggable(el) {
         let startX, startY;

@@ -392,7 +392,8 @@ body {
 .movie-card img {
     width: 100%;
     flex: 1;
-    object-fit: cover;
+    object-fit: contain;
+    background-color: #0f172a; /* Seamless extension of the info box */
     pointer-events: none;
 }
 
