@@ -71,27 +71,22 @@ body {
 
 /* App Header */
 .app-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
+    position: relative;
     height: 70px;
     width: 100%;
-    padding: 0 20px;
     background: transparent;
-    direction: ltr; /* Force LTR just for header to control exact physical locations */
-}
-
-/* Because of ltr, child 1 is physically left, child 2 is physical right. 
-   If user wants Logo on Right and Toggle on Left, we reverse the flex! */
-.app-header {
-    flex-direction: row-reverse;
+    direction: rtl; /* Keeps toggle text structure safe */
 }
 
 .app-brand {
+    position: absolute;
+    right: 20px; /* Unconditionally physically pinned to the right */
+    top: 50%;
+    transform: translateY(-50%);
     font-size: 1.8rem;
     font-weight: 800;
     letter-spacing: -1px;
-    color: white; /* Force white so it never disappears! */
+    color: white; /* Forced explicitly visible */
     z-index: 100;
     display: block;
 }
@@ -107,6 +102,10 @@ body {
 
 /* Mode Toggle */
 .mode-toggle {
+    position: absolute;
+    left: 20px; /* Unconditionally physically pinned to the left */
+    top: 50%;
+    transform: translateY(-50%);
     display: flex;
     background: rgba(30, 41, 59, 1);
     border: 1px solid rgba(255, 255, 255, 0.1);
@@ -114,7 +113,6 @@ body {
     padding: 3px;
     width: 150px;
     height: 38px;
-    position: relative;
     z-index: 10;
 }
 
