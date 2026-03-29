@@ -47,7 +47,8 @@ class MovieRanker {
         this.selectedSwipeGenre = 'all';
         this.selectedBattleGenre = 'all';
         this.searchTimeout = null;
-        this.RECURRENCE_DELAY = 48 * 60 * 60 * 1000;
+        this.RECURRENCE_DELAY = 1000 * 60 * 60 * 24 * 30; // 30 days
+        this.SWIPE_UP_THRESHOLD = -200; // Harder to swipe up
         this.isFetching = false;
         
         this.cardStack = document.getElementById('card-stack');
@@ -139,27 +140,31 @@ class MovieRanker {
         const data = await res.json();
         if (data.results) {
             data.results.forEach(item => {
-                // Filter out Reality TV (ID 10764)
-                if (this.contentType === 'tv' && item.genre_ids && item.genre_ids.includes(10764)) return;
-
-                // Strict language/origin filter: English, Hebrew, or specifically Israeli
+                // Filter out Animation (16) entirely
+                if (item.genre_ids && item.genre_ids.includes(16)) return;
+                
+                // Filter out non-western regions unless they are immense global hits
                 const isEnglishOrHebrew = item.original_language === 'en' || item.original_language === 'he';
                 const isIsraeli = this.contentType === 'tv' && item.origin_country && item.origin_country.includes('IL');
-                
-                // "Global Hit" Exception: High vote count and rating (e.g., Squid Game, Money Heist)
                 const isGlobalHit = item.vote_count >= 1000 && item.vote_average >= 7.5;
+                const isWeirdAsian = ['hi', 'ja', 'ko', 'zh', 'ta', 'te', 'ml'].includes(item.original_language);
+                
+                // If it's weird Asian and NOT a global hit, block it
+                if (isWeirdAsian && !isGlobalHit) return;
                 
                 if (isEnglishOrHebrew || isIsraeli || isGlobalHit) {
-                    this.addMovieToPool({
-                        id: item.id,
-                        title: item.original_title || item.original_name,
-                        hebrew_title: item.title || item.name,
-                        poster_path: item.poster_path,
-                        genre_ids: item.genre_ids,
-                        release_date: item.release_date || item.first_air_date,
-                        vote_average: item.vote_average,
-                        vote_count: item.vote_count
-                    });
+                    if (item.poster_path && (item.title || item.name)) {
+                        this.addMovieToPool({
+                            id: item.id,
+                            title: item.original_title || item.original_name,
+                            hebrew_title: item.title || item.name,
+                            poster_path: item.poster_path,
+                            genre_ids: item.genre_ids,
+                            release_date: item.release_date || item.first_air_date,
+                            vote_average: item.vote_average,
+                            vote_count: item.vote_count
+                        });
+                    }
                 }
             });
         }
@@ -421,7 +426,7 @@ class MovieRanker {
             const curX = (e.type === 'touchend') ? e.changedTouches[0].clientX : e.clientX;
             const curY = (e.type === 'touchend') ? e.changedTouches[0].clientY : e.clientY;
             const dx = curX - startX, dy = curY - startY;
-            if (dy < -100) this.handleWatchlistAction(el);
+            if (dy < this.SWIPE_UP_THRESHOLD) this.handleWatchlistAction(el);
             else if (dx > 100) this.swipe(el, 'right');
             else if (dx < -100) this.swipe(el, 'left');
             else { el.style.transition = '0.3s'; el.style.transform = ''; el.style.boxShadow = ''; }
@@ -500,7 +505,7 @@ class MovieRanker {
         let found = [];
         if (this.tmdbKey) {
             try {
-                const url = `https://api.themoviedb.org/3/search/movie?api_key=${this.tmdbKey}&language=he-IL&query=${encodeURIComponent(query)}`;
+                const url = `https://api.themoviedb.org/3/search/${this.contentType}?api_key=${this.tmdbKey}&language=he-IL&query=${encodeURIComponent(query)}`;
                 const res = await fetch(url);
                 const data = await res.json();
                 found = data.results || [];
@@ -569,7 +574,7 @@ class MovieRanker {
     // --- Battle Logic ---
     renderBattle() {
         const arena = document.getElementById('battle-arena');
-        const pool = this.seenMovies.filter(m => {
+        const pool = this.data.seen.filter(m => {
             if (this.selectedBattleGenre === 'all') return true;
             return m.genre_ids && m.genre_ids.includes(parseInt(this.selectedBattleGenre));
         });
