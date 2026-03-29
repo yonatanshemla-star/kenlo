@@ -265,6 +265,7 @@ body {
     border-radius: 20px;
     color: white;
     font-family: var(--font-primary);
+    font-size: 16px; /* Prevents auto-zoom on iOS */
 }
 
 .search-results {
@@ -309,6 +310,10 @@ body {
     padding: 5px 0 15px;
     margin-bottom: 5px;
     scrollbar-width: none;
+}
+
+#swipe-genre-filter {
+    display: none; /* User requested to hide it for now to give more poster space */
 }
 
 .genre-selector::-webkit-scrollbar {
@@ -358,18 +363,18 @@ body {
 /* Swipe View */
 .card-stack {
     position: relative;
-    height: 480px;
+    height: 520px; /* Increased height since categories are hidden */
     width: 100%;
-    margin-top: 20px;
+    margin-top: 10px;
     display: flex;
     justify-content: center;
 }
 
 .movie-card {
     position: absolute;
-    width: 300px;
-    height: calc(100% - 30px);
-    max-height: 450px;
+    width: 320px; /* Slightly wider */
+    height: 100%; /* Stretch fully to stack */
+    max-height: none;
     background: var(--card-bg);
     border-radius: 24px;
     border: 1px solid var(--glass-border);

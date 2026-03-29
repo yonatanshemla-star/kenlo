@@ -354,7 +354,7 @@ class MovieRanker {
 
         card.innerHTML = `
             ${onWatchlist ? '<div class="watchlist-badge">ברשימת צפייה</div>' : ''}
-            <img src="${posterUrl}" alt="${movie.title}" loading="lazy">
+            <img src="${posterUrl}" alt="${movie.title}">
             <div class="info">
                 <h2>${movie.hebrew_title || movie.title}</h2>
                 <div class="sub">${movie.title} ${movie.release_date ? '(' + movie.release_date.split('-')[0] + ')' : ''}</div>
@@ -501,7 +501,7 @@ class MovieRanker {
                 </div>
             `;
             item.onclick = () => {
-                const movieObj = {
+                const obj = {
                     id: movie.id,
                     title: movie.title || movie.original_title,
                     hebrew_title: movie.hebrew_title || movie.title || movie.original_title,
@@ -509,14 +509,26 @@ class MovieRanker {
                     genre_ids: movie.genre_ids,
                     release_date: movie.release_date
                 };
-                this.addMovieToPool(movieObj);
-                if (!this.data.seen.find(m => m.id === movie.id)) {
-                    this.data.seen.push(movieObj);
-                    this.saveToLocalStorage();
-                    alert(`נוסף לדירוג: ${movieObj.hebrew_title}`);
-                }
+                
+                // Remove from lists if exists
+                this.data.all = this.data.all.filter(m => m.id !== obj.id);
+                this.data.seen = this.data.seen.filter(m => m.id !== obj.id);
+                delete this.data.notSeen[obj.id];
+                
+                // Add to the VERY TOP of the queue (unshift) 
+                this.data.all.unshift(obj);
+                
+                this.saveToLocalStorage();
+                this.showToast(`נוסף לתחילת החפיסה: ${obj.hebrew_title}`);
+                
                 resultsDiv.style.display = 'none';
                 document.getElementById('movie-search').value = '';
+                
+                // Ensure we switch to swipe view so the user can see it right away   
+                document.querySelectorAll('.nav-item').forEach(btn => btn.classList.remove('active'));
+                document.querySelector('.nav-item[data-target="swipe"]').classList.add('active');
+                this.currentView = 'swipe';
+                
                 this.renderCurrentView();
             };
             resultsDiv.appendChild(item);
