@@ -59,6 +59,14 @@ class MovieRanker {
 
     // Shortcut to current mode's data
     get data() { return this.contentType === 'movie' ? this.movieData : this.tvData; }
+    
+    getTerm(type = 'singular') {
+        if (this.contentType === 'movie') {
+            return type === 'singular' ? 'סרט' : 'סרטים';
+        } else {
+            return type === 'singular' ? 'סדרה' : 'סדרות';
+        }
+    }
 
     async init() {
         this.loadFromLocalStorage();
@@ -175,7 +183,9 @@ class MovieRanker {
 
     updateCounts() {
         const seenSpan = document.getElementById('seen-count');
+        const battleInfo = document.getElementById('battle-stats-info');
         if (seenSpan) seenSpan.textContent = this.data.seen.length;
+        if (battleInfo) battleInfo.innerHTML = `סימנת <span id="seen-count">${this.data.seen.length}</span> ${this.getTerm('plural')} עד כה`;
     }
 
     // --- Navigation & UI ---
@@ -224,6 +234,15 @@ class MovieRanker {
         
         const h1 = document.querySelector('#swipe-view h1');
         if (h1) h1.textContent = this.contentType === 'movie' ? 'ראית או לא?' : 'ראית כבר?';
+        
+        const battleDesc = document.getElementById('battle-desc');
+        if (battleDesc) battleDesc.textContent = `בחר את ה${this.getTerm()} המועדפת עליך מבין השניים`;
+
+        const movieTh = document.querySelector('.leaderboard th:nth-child(3)');
+        if (movieTh) movieTh.textContent = `שם ה${this.getTerm()}`;
+
+        const resetBtn = document.getElementById('reset-app');
+        if (resetBtn) resetBtn.textContent = `אפס את כל ה${this.getTerm('plural')}`;
     }
 
     renderGenreSelectors() {
@@ -376,16 +395,23 @@ class MovieRanker {
     swipe(el, direction) {
         const id = parseInt(el.dataset.id);
         const isLeft = direction === 'left';
-        if (isLeft) {
-            this.data.notSeen[id] = Date.now();
-        } else {
-            const movie = this.data.all.find(m => m.id == id);
-            if (movie && !this.data.seen.find(s => s.id == id)) {
-                this.data.seen.push(movie);
+        
+        // Add exit animation
+        el.classList.add(isLeft ? 'card-exit-left' : 'card-exit-right');
+        
+        // Wait for animation before updating DOM
+        setTimeout(() => {
+            if (isLeft) {
+                this.data.notSeen[id] = Date.now();
+            } else {
+                const movie = this.data.all.find(m => m.id == id);
+                if (movie && !this.data.seen.find(s => s.id == id)) {
+                    this.data.seen.push(movie);
+                }
             }
-        }
-        this.saveToLocalStorage();
-        this.renderSwipe();
+            this.saveToLocalStorage();
+            this.renderSwipe();
+        }, 300);
     }
 
     setupSwipeEvents() {
@@ -485,7 +511,7 @@ class MovieRanker {
         });
 
         if (pool.length < 2) {
-            arena.innerHTML = `<div class="stack-placeholder">צריך לפחות 2 סרטים שראית ב-"${GENRES[this.selectedBattleGenre] || 'ז\'אנר זה'}" כדי להלחם!</div>`;
+            arena.innerHTML = `<div class="stack-placeholder">צריך לפחות 2 ${this.getTerm('plural')} שראית ב-"${GENRES[this.selectedBattleGenre] || 'ז\'אנר זה'}" כדי להלחם!</div>`;
             return;
         }
 

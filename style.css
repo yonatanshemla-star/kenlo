@@ -94,12 +94,13 @@ body {
 /* Mode Toggle */
 .mode-toggle {
     display: flex;
-    background: rgba(30, 41, 59, 0.8);
-    border-radius: 10px;
-    padding: 4px;
+    background: rgba(30, 41, 59, 1);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    padding: 3px;
     position: relative;
-    width: 140px;
-    height: 36px;
+    width: 150px;
+    height: 38px;
 }
 
 .mode-toggle input {
@@ -110,33 +111,34 @@ body {
     flex: 1;
     text-align: center;
     z-index: 2;
-    font-size: 0.8rem;
+    font-size: 0.85rem;
     font-weight: 700;
     cursor: pointer;
-    line-height: 28px;
-    transition: color 0.3s ease;
-    color: #94a3b8;
+    line-height: 32px;
+    transition: all 0.3s ease;
+    color: #475569;
 }
 
 .mode-slider {
     position: absolute;
-    width: calc(50% - 4px);
-    height: calc(100% - 8px);
-    background: #334155;
-    border-radius: 6px;
+    width: calc(50% - 3px);
+    height: calc(100% - 6px);
+    border-radius: 9px;
     transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-    left: 4px;
+    left: 3px;
     z-index: 1;
 }
 
 #mode-movie:checked ~ .mode-slider {
-    left: 4px;
-    background: #475569;
+    left: 3px;
+    background: #818cf8;
+    box-shadow: 0 0 15px rgba(129, 140, 248, 0.4);
 }
 
 #mode-tv:checked ~ .mode-slider {
     left: calc(50%);
-    background: #475569;
+    background: #22d3ee;
+    box-shadow: 0 0 15px rgba(34, 211, 238, 0.4);
 }
 
 #mode-movie:checked ~ label[for="mode-movie"],
@@ -413,6 +415,7 @@ body {
     justify-content: center;
     gap: 30px;
     padding-bottom: 10px;
+    flex-direction: row-reverse; /* Ensure X is Left, V is Right in RTL */
 }
 
 .btn-swipe {
