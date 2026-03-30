@@ -615,7 +615,7 @@ body {
 }
 
 /* Buttons */
-.btn-primary, .btn-secondary, .btn-danger {
+.btn-primary, .btn-secondary, .btn-danger, .btn-success {
     padding: 12px 24px;
     border-radius: 12px;
     border: none;
@@ -637,9 +637,22 @@ body {
 }
 
 .btn-danger {
-    background: rgba(231, 76, 60, 0.2);
-    color: var(--danger);
-    border: 1px solid var(--danger);
+    background: rgba(239, 68, 68, 0.2);
+    color: #ef4444;
+    border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.btn-success {
+    background: rgba(34, 197, 94, 0.2);
+    color: #22c55e;
+    border: 1px solid rgba(34, 197, 94, 0.3);
+}
+
+.btn-sm {
+    padding: 6px 14px;
+    font-size: 0.85rem;
+    border-radius: 8px;
+    margin: 0 4px;
 }
 
 /* Form Settings */
