@@ -85,7 +85,7 @@ body {
 .app-header .logo {
     display: block;
     font-family: 'Montserrat', sans-serif;
-    font-size: 105px !important; /* Extremely massive and forced */
+    font-size: 58px !important; /* Balanced massive size */
     font-weight: 900;
     letter-spacing: -3px;
     color: white;
