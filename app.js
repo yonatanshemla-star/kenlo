@@ -29,6 +29,7 @@ class MovieRanker {
             watchlist: [],
             history: [],
             elo: {},
+            stats: {}, // { id: { wins: 0, total: 0 } }
             pages: { 'movie/popular':0, 'movie/top_rated':0, 'discover/movie':0, 'movie/now_playing':0 }
         };
         this.tvData = {
@@ -38,6 +39,7 @@ class MovieRanker {
             watchlist: [],
             history: [],
             elo: {},
+            stats: {}, // { id: { wins: 0, total: 0 } }
             pages: { 'tv/popular':0, 'tv/top_rated':0, 'discover/tv':0, 'tv/on_the_air':0, 'tv/israeli':0 }
         };
 
@@ -55,9 +57,15 @@ class MovieRanker {
         
         this.cardStack = document.getElementById('card-stack');
         this.views = document.querySelectorAll('.view');
-        this.navLinks = document.querySelectorAll('.nav-links li');
-        
+        this.userName = localStorage.getItem('kenlo_user_name') || '';
         this.init();
+    }
+
+    updateHeaderName() {
+        const logo = document.querySelector('.logo');
+        if (this.userName && logo) {
+            logo.innerHTML = `${this.userName}<span style="color: var(--accent); opacity: 0.7; font-size: 0.8rem; vertical-align: super; margin-right: 4px;">KenLo</span>`;
+        }
     }
 
     // Shortcut to current mode's data
@@ -75,8 +83,9 @@ class MovieRanker {
         this.loadFromLocalStorage();
         this.setupNavigation();
         this.setupSwipeEvents();
-        this.setupSearchEvents();
         this.setupGeneralEvents();
+        this.updateTheme();
+        this.updateHeaderName();
         this.setupModeToggle();
         this.renderGenreSelectors();
         this.renderCurrentView();
@@ -210,10 +219,12 @@ class MovieRanker {
             }
             
             // Ensure newly added schema fields exist in loaded data
-            if (!this.movieData.history) this.movieData.history = [];
-            if (!this.tvData.history) this.tvData.history = [];
+            if (!this.movieData.stats) this.movieData.stats = {};
+            if (!this.tvData.stats) this.tvData.stats = {};
             
-            this.contentType = parsed.lastMode || 'movie';
+            this.renderCurrentView();
+        } else {
+            this.contentType = 'movie';
             
             // Sync toggle UI
             const radio = document.getElementById(`mode-${this.contentType}`);
@@ -536,15 +547,23 @@ class MovieRanker {
     }
 
     setupSwipeEvents() {
+        const getTopCard = () => {
+            return Array.from(this.cardStack.children)
+                .filter(c => !c.classList.contains('stack-placeholder') && 
+                             !c.classList.contains('card-exit-left') && 
+                             !c.classList.contains('card-exit-right'))
+                .sort((a,b) => parseInt(b.style.zIndex || 0) - parseInt(a.style.zIndex || 0))[0];
+        };
+
         document.getElementById('swipe-no').onclick = () => {
-            const top = this.cardStack.lastElementChild;
-            if (top && !top.classList.contains('stack-placeholder')) this.swipe(top, 'left');
+            const top = getTopCard();
+            if (top) this.swipe(top, 'left');
         };
         const undoBtn = document.getElementById('swipe-undo');
         if (undoBtn) undoBtn.onclick = () => this.undo();
         document.getElementById('swipe-yes').onclick = () => {
-            const top = this.cardStack.lastElementChild;
-            if (top && !top.classList.contains('stack-placeholder')) this.swipe(top, 'right');
+            const top = getTopCard();
+            if (top) this.swipe(top, 'right');
         };
     }
 
@@ -650,12 +669,27 @@ class MovieRanker {
             return;
         }
 
+        // Smart Matchmaking: 
+        // 1. Pick a random base candidate
         const idxA = Math.floor(Math.random() * pool.length);
-        let idxB = Math.floor(Math.random() * pool.length);
-        while (idxB === idxA) idxB = Math.floor(Math.random() * pool.length);
-        this.currentMatch = { a: pool[idxA], b: pool[idxB] };
+        const movieA = pool[idxA];
+        
+        // 2. Pick a candidate with similar rank OR low battle count
+        let poolB = pool.filter(m => m.id !== movieA.id);
+        const rankA = this.data.elo[movieA.id] || 1000;
+        
+        // Prefer "fresher" movies or those close in rank (ELO +/- 200)
+        let weightedPoolB = poolB.filter(m => Math.abs((this.data.elo[m.id]||1000) - rankA) < 150);
+        
+        // If no close matches, fallback to low battle count items
+        if (weightedPoolB.length === 0) {
+            weightedPoolB = poolB.sort((a,b) => (this.data.stats[a.id]?.total||0) - (this.data.stats[b.id]?.total||0)).slice(0, 10);
+        }
 
-        // Reset arena classes before rendering new movies
+        const movieB = weightedPoolB[Math.floor(Math.random() * weightedPoolB.length)] || poolB[0];
+        
+        this.currentMatch = { a: movieA, b: movieB };
+
         arena.innerHTML = `<div class="battle-card" id="movie-a"></div><div class="vs">נגד</div><div class="battle-card" id="movie-b"></div>`;
         this.renderBattleCard('movie-a', this.currentMatch.a);
         this.renderBattleCard('movie-b', this.currentMatch.b);
@@ -673,10 +707,37 @@ class MovieRanker {
     }
 
     updateElo(idA, idB, outcome) {
+        // Init stats if missing
+        if (!this.data.stats[idA]) this.data.stats[idA] = { wins: 0, total: 0 };
+        if (!this.data.stats[idB]) this.data.stats[idB] = { wins: 0, total: 0 };
+
         const Ra = this.data.elo[idA] || 1000, Rb = this.data.elo[idB] || 1000, K = 32;
         const Ea = 1 / (1 + Math.pow(10, (Rb - Ra) / 400)), Eb = 1 / (1 + Math.pow(10, (Ra - Rb) / 400));
+        
+        // Traditional ELO update
         this.data.elo[idA] = Math.round(Ra + K * (outcome - Ea));
         this.data.elo[idB] = Math.round(Rb + (K * ((1 - outcome) - Eb)));
+        
+        // Win Rate update
+        this.data.stats[idA].total++;
+        this.data.stats[idB].total++;
+        if (outcome === 1) this.data.stats[idA].wins++;
+        else this.data.stats[idB].wins++;
+    }
+
+    getNormScore(id) {
+        // Map 800-1600 ELO range to 1.0-10.0 scale
+        const elo = this.data.elo[id] || 1000;
+        let score = ((elo - 800) / 80).toFixed(1);
+        if (score > 10.0) score = 10.0;
+        if (score < 1.0) score = 1.0;
+        return score;
+    }
+
+    getWinRate(id) {
+        const s = this.data.stats[id];
+        if (!s || s.total === 0) return 0;
+        return Math.round((s.wins / s.total) * 100);
     }
 
     // --- Stats & Watchlist ---
@@ -687,7 +748,16 @@ class MovieRanker {
         [...this.data.seen].sort((a,b) => (this.data.elo[b.id]||1000) - (this.data.elo[a.id]||1000)).forEach((m, i) => {
             const url = m.poster_path ? `https://image.tmdb.org/t/p/w92${m.poster_path}` : 'https://via.placeholder.com/40x60';
             const tr = document.createElement('tr');
-            tr.innerHTML = `<td>${i+1}</td><td><img src="${url}" class="mini-poster"></td><td><strong>${m.hebrew_title}</strong><br><small>${m.title}</small></td><td><span class="rank-badge">${this.data.elo[m.id]}</span></td>`;
+            const score = this.getNormScore(m.id);
+            const winRate = this.getWinRate(m.id);
+            tr.innerHTML = `
+                <td>${i+1}</td>
+                <td><img src="${url}" class="mini-poster"></td>
+                <td>
+                    <strong>${m.hebrew_title}</strong><br>
+                    <small>${winRate}% אהדה · ${this.data.stats[m.id]?.total || 0} קרבות</small>
+                </td>
+                <td><span class="rank-badge">${score}</span></td>`;
             tbody.appendChild(tr);
         });
     }
@@ -743,6 +813,24 @@ class MovieRanker {
     setupGeneralEvents() {
         this.registerGlobals();
         
+        // Name personalization
+        const nameInput = document.getElementById('user-name-input');
+        if (nameInput) {
+            nameInput.value = this.userName;
+        }
+        const saveNameBtn = document.getElementById('save-name');
+        if (saveNameBtn) {
+            saveNameBtn.onclick = () => {
+                const val = nameInput.value.trim();
+                if (val) {
+                    this.userName = val;
+                    localStorage.setItem('kenlo_user_name', val);
+                    this.updateHeaderName();
+                    this.showToast(`שלום ${val}! הפרופיל שלך עודכן.`);
+                }
+            };
+        }
+
         // Copy formatted text for Gemini
         const copyBtn = document.getElementById('copy-stats');
         if (copyBtn) {
@@ -755,8 +843,8 @@ class MovieRanker {
                 
                 let text = `--- דירוג ה${this.contentType === 'movie' ? 'סרטים' : 'סדרות'} שלי ב-KenLo ---\n\n`;
                 sorted.forEach((m, i) => {
-                    const score = this.data.elo[m.id] || 1000;
-                    text += `${i+1}. ${m.hebrew_title || m.title} (${Math.round(score)} Elo)\n`;
+                    const score = this.getNormScore(m.id);
+                    text += `${i+1}. ${m.hebrew_title || m.title} (ציון: ${score})\n`;
                 });
                 
                 if (this.data.watchlist.length > 0) {
@@ -779,15 +867,28 @@ class MovieRanker {
             }, null, 2)], {type:'application/json'});
             const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'kenlo_full_backup.json'; a.click();
         };
-        
-        document.getElementById('reset-app').onclick = () => { 
-            if (confirm(`בטוח שתרצה למחוק את כל נתוני ה${this.contentType === 'movie' ? 'סרטים' : 'סדרות'}?`)) { 
-                if (this.contentType === 'movie') {
-                    this.movieData = { all: [], seen: [], notSeen: {}, watchlist: [], el: {}, pages: { 'movie/popular':0, 'movie/top_rated':0, 'discover/movie':0, 'movie/now_playing':0 } };
-                } else {
-                    this.tvData = { all: [], seen: [], notSeen: {}, watchlist: [], el: {}, pages: { 'tv/popular':0, 'tv/top_rated':0, 'discover/tv':0, 'tv/on_the_air':0, 'tv/israeli':0 } };
+
+        const updateBtn = document.getElementById('update-app');
+        if (updateBtn) {
+            updateBtn.onclick = async () => {
+                this.showToast('בודק עדכונים...');
+                if ('serviceWorker' in navigator) {
+                    const regs = await navigator.serviceWorker.getRegistrations();
+                    for (let reg of regs) {
+                        await reg.update();
+                    }
                 }
-                this.saveToLocalStorage(); 
+                this.showToast('מעדכן גרסה...');
+                setTimeout(() => {
+                    const cleanUrl = window.location.href.split('#')[0].split('?')[0];
+                    window.location.href = cleanUrl + '?v=' + Date.now();
+                }, 1000);
+            };
+        }
+
+        document.getElementById('reset-app').onclick = () => { 
+            if (confirm(`בטוח שתרצה למחוק את כל הנתונים?`)) { 
+                localStorage.clear();
                 location.reload(); 
             } 
         };
