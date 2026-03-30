@@ -668,12 +668,13 @@ body {
     gap: 8px;
 }
 
-input[type="password"] {
+input[type="password"], input[type="text"] {
     background: rgba(0,0,0,0.3);
     border: 1px solid var(--glass-border);
     padding: 12px;
     border-radius: 10px;
     color: white;
+    font-size: 16px; /* Prevents iOS auto-zoom on focus */
     font-family: var(--font-accent);
 }
 
