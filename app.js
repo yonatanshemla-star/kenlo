@@ -317,11 +317,7 @@ class MovieRanker {
 
     renderGenreSelectors() {
         const swipeContainer = document.getElementById('swipe-genre-filter');
-        const battleSelect = document.getElementById('battle-genre-filter');
-        if (!swipeContainer || !battleSelect) return;
-
         swipeContainer.innerHTML = '<button class="genre-chip active" data-genre="all">הכל</button>';
-        battleSelect.innerHTML = '<option value="all">כל הז\'אנרים</option>';
         
         Object.entries(GENRES).forEach(([id, name]) => {
             const chip = document.createElement('button');
@@ -335,18 +331,9 @@ class MovieRanker {
                 this.renderSwipe();
             };
             swipeContainer.appendChild(chip);
-
-            const option = document.createElement('option');
-            option.value = id;
-            option.textContent = name;
-            battleSelect.appendChild(option);
         });
 
-        battleSelect.onchange = (e) => {
-            this.selectedBattleGenre = e.target.value;
-            this.renderBattle();
-        };
-
+        // Battle select listener removed
         const allChip = swipeContainer.querySelector('[data-genre="all"]');
         allChip.onclick = () => {
             document.querySelectorAll('.genre-chip').forEach(c => c.classList.remove('active'));
@@ -661,10 +648,7 @@ class MovieRanker {
     // --- Battle Logic ---
     renderBattle() {
         const arena = document.getElementById('battle-arena');
-        const pool = this.data.seen.filter(m => {
-            if (this.selectedBattleGenre === 'all') return true;
-            return m.genre_ids && m.genre_ids.includes(parseInt(this.selectedBattleGenre));
-        });
+        const pool = this.data.seen;
 
         if (pool.length < 2) {
             arena.innerHTML = `<div class="stack-placeholder">צריך לפחות 2 ${this.getTerm('plural')} שראית ב-"${GENRES[this.selectedBattleGenre] || 'ז\'אנר זה'}" כדי להלחם!</div>`;
