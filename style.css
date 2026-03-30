@@ -84,26 +84,30 @@ body {
 
 .logo {
     font-family: 'Montserrat', sans-serif;
-    font-size: 5rem; /* Massive impact */
+    font-size: 84px; /* Fixed large pixel size for consistency */
     font-weight: 900;
-    letter-spacing: -1px; /* Relaxed for readability */
+    letter-spacing: -2px;
     color: white;
     z-index: 100;
-    line-height: 0.8;
+    line-height: 0.7;
     transition: all 0.3s ease;
-    padding-top: 15px;
+    padding-top: 10px;
+    flex-shrink: 0; /* Important: prevent iPhone from shrinking it */
 }
 
 .logo span {
+    display: inline-block;
     color: #818cf8;
     font-weight: 900;
-    margin-left: 2px;
-    text-shadow: 0 0 20px rgba(129, 140, 248, 0.4);
+    margin-left: 4px;
+    text-shadow: 0 0 25px rgba(129, 140, 248, 0.8);
+    filter: drop-shadow(0 0 8px rgba(129, 140, 248, 0.6));
+    transform: scale(1.1);
 }
 
 .app-container.mode-tv .logo span {
     color: #22d3ee;
-    text-shadow: 0 0 20px rgba(34, 211, 238, 0.4);
+    text-shadow: 0 0 25px rgba(34, 211, 238, 0.8);
 }
 
 /* Mode Toggle */
