@@ -161,10 +161,14 @@ body {
 
 #mode-movie:checked ~ .mode-slider {
     transform: translateX(0);
+    background: #818cf8;
+    box-shadow: 0 0 15px rgba(129, 140, 248, 0.4);
 }
 
 #mode-tv:checked ~ .mode-slider {
     transform: translateX(-100%);
+    background: #22d3ee;
+    box-shadow: 0 0 15px rgba(34, 211, 238, 0.4);
 }
 
 #mode-movie:checked ~ label[for="mode-movie"],
