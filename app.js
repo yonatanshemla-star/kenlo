@@ -64,9 +64,7 @@ class MovieRanker {
 
     updateHeaderName() {
         const logo = document.querySelector('.logo');
-        if (this.userName && logo) {
-            logo.innerHTML = `<span style="font-size: 1rem; color: var(--text-secondary); opacity: 0.8; vertical-align: middle; margin-left: 10px;">${this.userName}'s</span> Cut<span>!</span>`;
-        } else if (logo) {
+        if (logo) {
             logo.innerHTML = `Cut<span>!</span>`;
         }
     }
