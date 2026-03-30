@@ -57,6 +57,7 @@ class MovieRanker {
         
         this.cardStack = document.getElementById('card-stack');
         this.views = document.querySelectorAll('.view');
+        this.navLinks = document.querySelectorAll('.nav-links li');
         this.userName = localStorage.getItem('kenlo_user_name') || '';
         this.init();
     }
@@ -83,6 +84,7 @@ class MovieRanker {
         this.loadFromLocalStorage();
         this.setupNavigation();
         this.setupSwipeEvents();
+        this.setupSearchEvents();
         this.setupGeneralEvents();
         this.updateTheme();
         this.updateHeaderName();
