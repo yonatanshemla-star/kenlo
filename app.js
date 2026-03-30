@@ -27,6 +27,7 @@ class MovieRanker {
             seen: [],
             notSeen: {},
             watchlist: [],
+            history: [],
             elo: {},
             pages: { 'movie/popular':0, 'movie/top_rated':0, 'discover/movie':0, 'movie/now_playing':0 }
         };
@@ -35,6 +36,7 @@ class MovieRanker {
             seen: [],
             notSeen: {},
             watchlist: [],
+            history: [],
             elo: {},
             pages: { 'tv/popular':0, 'tv/top_rated':0, 'discover/tv':0, 'tv/on_the_air':0, 'tv/israeli':0 }
         };
@@ -178,11 +180,26 @@ class MovieRanker {
     }
 
     loadFromLocalStorage() {
-        const saved = localStorage.getItem('kenlo_data_v2');
+        let saved = localStorage.getItem('kenlo_data_v2');
+        
+        // Data loss prevention: If no V2 data, try loading V1 legacy data
+        if (!saved) {
+            const legacy = localStorage.getItem('kenlo_data');
+            if (legacy) {
+                saved = legacy;
+                localStorage.removeItem('kenlo_data'); // Safe migration
+            }
+        }
+        
         if (saved) {
             const parsed = JSON.parse(saved);
             this.movieData = parsed.movieData || this.movieData;
             this.tvData = parsed.tvData || this.tvData;
+            
+            // Ensure newly added schema fields exist in loaded data
+            if (!this.movieData.history) this.movieData.history = [];
+            if (!this.tvData.history) this.tvData.history = [];
+            
             this.contentType = parsed.lastMode || 'movie';
             
             // Sync toggle UI
@@ -458,6 +475,11 @@ class MovieRanker {
         
         // Wait for animation before updating DOM
         setTimeout(() => {
+            // Log history for undo
+            if (!this.data.history) this.data.history = [];
+            this.data.history.push({ id, action: isLeft ? 'left' : 'right' });
+            if (this.data.history.length > 50) this.data.history.shift();
+            
             if (isLeft) {
                 this.data.notSeen[id] = Date.now();
             } else {
@@ -471,11 +493,42 @@ class MovieRanker {
         }, 300);
     }
 
+    undo() {
+        if (!this.data.history || this.data.history.length === 0) {
+            this.showToast('אין עוד פעולות לביטול');
+            return;
+        }
+        
+        const lastAction = this.data.history.pop();
+        const id = lastAction.id;
+        
+        if (lastAction.action === 'left') {
+            delete this.data.notSeen[id];
+        } else if (lastAction.action === 'right') {
+            this.data.seen = this.data.seen.filter(s => s.id !== id);
+        } else if (lastAction.action === 'watchlist') {
+            this.data.watchlist = this.data.watchlist.filter(w => w !== id);
+        }
+        
+        // Move to the very top of unseen cards so it comes back instantly
+        const movieIndex = this.data.all.findIndex(m => m.id === id);
+        if (movieIndex !== -1) {
+            const movie = this.data.all.splice(movieIndex, 1)[0];
+            this.data.all.unshift(movie);
+        }
+        
+        this.saveToLocalStorage();
+        this.renderSwipe();
+        this.showToast('הפעולה בוטלה');
+    }
+
     setupSwipeEvents() {
         document.getElementById('swipe-no').onclick = () => {
             const top = this.cardStack.lastElementChild;
             if (top && !top.classList.contains('stack-placeholder')) this.swipe(top, 'left');
         };
+        const undoBtn = document.getElementById('swipe-undo');
+        if (undoBtn) undoBtn.onclick = () => this.undo();
         document.getElementById('swipe-yes').onclick = () => {
             const top = this.cardStack.lastElementChild;
             if (top && !top.classList.contains('stack-placeholder')) this.swipe(top, 'right');
@@ -633,7 +686,10 @@ class MovieRanker {
         this.data.all.filter(m => this.data.watchlist.includes(m.id)).forEach(m => {
             const url = m.poster_path ? `https://image.tmdb.org/t/p/w92${m.poster_path}` : 'https://via.placeholder.com/40x60';
             const tr = document.createElement('tr');
-            tr.innerHTML = `<td><img src="${url}" class="mini-poster"></td><td><strong>${m.hebrew_title}</strong><br><small>${m.title}</small></td><td><button class="btn-danger btn-sm" onclick="window.removeWatchlist(${m.id})">הסר</button></td>`;
+            tr.innerHTML = `<td><img src="${url}" class="mini-poster"></td><td><strong>${m.hebrew_title}</strong><br><small>${m.title}</small></td><td>
+                <button class="btn-success btn-sm" onclick="window.markWatchlistSeen(${m.id})">ראיתי</button>
+                <button class="btn-danger btn-sm" onclick="window.removeWatchlist(${m.id})">הסר</button>
+            </td>`;
             tbody.appendChild(tr);
         });
     }
@@ -645,6 +701,17 @@ class MovieRanker {
             this.renderWatchlist(); 
         };
         
+        window.markWatchlistSeen = (id) => {
+            const movie = this.data.all.find(m => m.id === id);
+            if (movie && !this.data.seen.find(s => s.id === id)) {
+                this.data.seen.push(movie);
+            }
+            this.data.watchlist = this.data.watchlist.filter(wid => wid !== id); 
+            this.saveToLocalStorage(); 
+            this.renderWatchlist();
+            this.showToast('סומן כנצפה!'); 
+        };
+        
         window.toggleWatchlist = (id) => {
             if (this.data.watchlist.includes(id)) {
                 this.data.watchlist = this.data.watchlist.filter(wid => wid !== id);
@@ -652,6 +719,8 @@ class MovieRanker {
             } else {
                 this.data.watchlist.push(id);
                 this.showToast('נוסף לרשימת הצפייה');
+                if (!this.data.history) this.data.history = [];
+                this.data.history.push({ id, action: 'watchlist' });
             }
             this.saveToLocalStorage();
             this.renderCurrentView();
