@@ -70,50 +70,48 @@ body {
     box-shadow: 0 0 20px rgba(8, 145, 178, 0.3);
 }
 
-/* App Header */
+/* App Header Styling */
 .app-header {
     position: relative;
     height: 70px;
     width: 100%;
     background: transparent;
-    direction: rtl; /* Keeps toggle text structure safe */
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 20px;
 }
 
-.app-brand {
-    position: absolute;
-    right: 20px; /* Unconditionally physically pinned to the right */
-    top: 50%;
-    transform: translateY(-50%);
-    font-size: 1.8rem;
+.logo {
+    font-family: var(--font-accent);
+    font-size: 2.1rem; /* Larger and more prominent */
     font-weight: 800;
-    letter-spacing: -1px;
-    color: white; /* Forced explicitly visible */
+    letter-spacing: -1.5px;
+    color: white;
     z-index: 100;
-    display: block;
+    line-height: 1;
+    transition: all 0.3s ease;
 }
 
-.app-brand span {
+.logo span {
     color: #818cf8;
     transition: color 0.3s ease;
 }
 
-.app-container.mode-tv .app-brand span {
+.app-container.mode-tv .logo span {
     color: #22d3ee;
 }
 
 /* Mode Toggle */
 .mode-toggle {
-    position: absolute;
-    left: 20px; /* Unconditionally physically pinned to the left */
-    top: 50%;
-    transform: translateY(-50%);
     display: flex;
-    background: rgba(30, 41, 59, 1);
+    background: rgba(30, 41, 59, 0.4);
+    backdrop-filter: blur(8px);
     border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 12px;
+    border-radius: 14px;
     padding: 3px;
-    width: 150px;
-    height: 38px;
+    width: 160px;
+    height: 42px;
     z-index: 10;
 }
 
@@ -180,16 +178,7 @@ body {
     z-index: 1000;
 }
 
-.logo {
-    font-family: var(--font-accent);
-    font-size: 1.5rem;
-    font-weight: 700;
-    color: white;
-}
-
-.logo span {
-    color: var(--accent);
-}
+/* Cleanup duplicated logo styles */
 
 .nav-links {
     list-style: none;
