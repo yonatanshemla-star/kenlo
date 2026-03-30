@@ -743,9 +743,15 @@ class MovieRanker {
                     <strong>${m.hebrew_title}</strong><br>
                     <small>${winRate}% אהדה · ${this.data.stats[m.id]?.total || 0} קרבות</small>
                 </td>
-                <td><span class="rank-badge">${score}</span></td>`;
+                <td><span class="rank-badge">${score}</span></td>
+                <td>
+                    <button class="list-btn btn-remove" onclick="window.removeSeen(${m.id})" title="הסר מהרשימה">
+                        <i data-lucide="trash-2"></i>
+                    </button>
+                </td>`;
             tbody.appendChild(tr);
         });
+        if (window.lucide) window.lucide.createIcons();
     }
 
     renderWatchlist() {
@@ -755,12 +761,22 @@ class MovieRanker {
         this.data.all.filter(m => this.data.watchlist.includes(m.id)).forEach(m => {
             const url = m.poster_path ? `https://image.tmdb.org/t/p/w92${m.poster_path}` : 'https://via.placeholder.com/40x60';
             const tr = document.createElement('tr');
-            tr.innerHTML = `<td><img src="${url}" class="mini-poster"></td><td><strong>${m.hebrew_title}</strong><br><small>${m.title}</small></td><td>
-                <button class="btn-success btn-sm" onclick="window.markWatchlistSeen(${m.id})">ראיתי</button>
-                <button class="btn-danger btn-sm" onclick="window.removeWatchlist(${m.id})">הסר</button>
-            </td>`;
+            tr.innerHTML = `
+                <td><img src="${url}" class="mini-poster"></td>
+                <td><strong>${m.hebrew_title}</strong><br><small>${m.title}</small></td>
+                <td>
+                    <div class="list-actions">
+                        <button class="list-btn btn-seen" onclick="window.markWatchlistSeen(${m.id})" title="ראיתי">
+                            <i data-lucide="check"></i>
+                        </button>
+                        <button class="list-btn btn-remove" onclick="window.removeWatchlist(${m.id})" title="הסר">
+                            <i data-lucide="x"></i>
+                        </button>
+                    </div>
+                </td>`;
             tbody.appendChild(tr);
         });
+        if (window.lucide) window.lucide.createIcons();
     }
 
     registerGlobals() {
@@ -768,6 +784,17 @@ class MovieRanker {
             this.data.watchlist = this.data.watchlist.filter(wid => wid !== id); 
             this.saveToLocalStorage(); 
             this.renderWatchlist(); 
+            this.showToast('הוסר מרשימת הצפייה');
+        };
+
+        window.removeSeen = (id) => {
+            if (confirm('בטוח שברצונך להסיר תוכן זה מהדירוג שלך?')) {
+                this.data.seen = this.data.seen.filter(s => s.id !== id);
+                // Also reset ELO and stats for this item if needed? Let's keep it simple for now.
+                this.saveToLocalStorage();
+                this.renderStats();
+                this.showToast('הוסר מהדירוג');
+            }
         };
         
         window.markWatchlistSeen = (id) => {

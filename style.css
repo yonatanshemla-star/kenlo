@@ -793,6 +793,53 @@ input[type="password"], input[type="text"] {
     .vs { padding: 5px 8px; font-size: 0.9rem; }
 }
 
+/* List Action Buttons (Watchlist & Stats) */
+.list-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-start;
+}
+
+.list-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.05);
+    color: #94a3b8;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
+}
+
+.list-btn i {
+    width: 18px;
+    height: 18px;
+}
+
+.list-btn:hover {
+    transform: translateY(-2px);
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+.btn-seen:hover {
+    background: rgba(34, 211, 238, 0.15);
+    color: #22d3ee;
+    border-color: rgba(34, 211, 238, 0.3);
+    box-shadow: 0 0 15px rgba(34, 211, 238, 0.2);
+}
+
+.btn-remove:hover {
+    background: rgba(239, 68, 68, 0.15);
+    color: #ef4444;
+    border-color: rgba(239, 68, 68, 0.3);
+    box-shadow: 0 0 15px rgba(239, 68, 68, 0.2);
+}
+
 /* Toast Notifications */
 #toast-container {
     position: fixed;
