@@ -97,62 +97,61 @@ class MovieRanker {
     async fetchContentMixed(batchSize = 5) {
         if (!this.tmdbKey || this.isFetching) return;
         this.isFetching = true;
+        const fetchType = this.contentType; // Lock type for this async run
         
         try {
-            const endpoints = this.contentType === 'movie' 
+            const endpoints = fetchType === 'movie' 
                 ? [ 'movie/popular', 'movie/top_rated', 'discover/movie', 'movie/now_playing' ]
                 : [ 'tv/popular', 'tv/top_rated', 'discover/tv', 'tv/on_the_air', 'tv/israeli' ];
 
             for (const endpoint of endpoints) {
                 for (let i = 0; i < batchSize; i++) {
-                    const pages = this.data.pages;
+                    const targetData = fetchType === 'movie' ? this.movieData : this.tvData;
+                    const pages = targetData.pages;
                     pages[endpoint]++;
                     const page = pages[endpoint];
                     
                     let extraParams = '';
                     let usePage = page;
                     
-                    // Force random pages for "discover" to heavily mix eras (old and new)
                     if (endpoint.includes('discover')) {
                         extraParams = '&sort_by=vote_count.desc&vote_count.gte=100';
                         usePage = Math.floor(Math.random() * 200) + 1;
                     } else if (endpoint === 'tv/israeli') {
-                        // Keep Israeli TV to the top 5 pages where the actual hits live
                         const ilPage = Math.floor(Math.random() * 5) + 1;
                         const urlIL = `https://api.themoviedb.org/3/discover/tv?api_key=${this.tmdbKey}&language=he-IL&with_origin_country=IL&page=${ilPage}&sort_by=popularity.desc`;
-                        await this.fetchAndAdd(urlIL);
+                        await this.fetchAndAdd(urlIL, fetchType);
                         continue;
                     }
                     
                     const baseEndpoint = endpoint === 'tv/israeli' ? 'discover/tv' : endpoint;
                     const url = `https://api.themoviedb.org/3/${baseEndpoint}?api_key=${this.tmdbKey}&language=he-IL&page=${usePage}${extraParams}`;
-                    await this.fetchAndAdd(url);
+                    await this.fetchAndAdd(url, fetchType);
                 }
             }
             
-            // True shuffle of the entire deck so old and new are perfectly mixed
             this.shuffleArray(this.data.all);
             
             this.renderCurrentView();
         } catch (e) { console.error("Fetch failed:", e); } finally { this.isFetching = false; }
     }
 
-    async fetchAndAdd(url) {
+    async fetchAndAdd(url, targetType) {
         const res = await fetch(url);
         const data = await res.json();
         if (data.results) {
             data.results.forEach(item => {
-                // Filter out Animation (16) entirely
                 if (item.genre_ids && item.genre_ids.includes(16)) return;
                 
-                // Filter out non-western regions unless they are immense global hits
                 const isEnglishOrHebrew = item.original_language === 'en' || item.original_language === 'he';
-                const isIsraeli = this.contentType === 'tv' && item.origin_country && item.origin_country.includes('IL');
+                const isIsraeli = targetType === 'tv' && item.origin_country && item.origin_country.includes('IL');
                 const isGlobalHit = item.vote_count >= 1000 && item.vote_average >= 7.5;
-                const isWeirdAsian = ['hi', 'ja', 'ko', 'zh', 'ta', 'te', 'ml'].includes(item.original_language);
+                const isWeirdAsian = ['hi', 'ja', 'ko', 'zh', 'ta', 'te', 'ml', 'th', 'tr'].includes(item.original_language);
                 
-                // If it's weird Asian and NOT a global hit, block it
+                // Block explicit Bollywood/Anime unless immense global hit
                 if (isWeirdAsian && !isGlobalHit) return;
+                // Additionally block Turkish Soap Operas if not global hits
+                if (item.original_language === 'tr' && targetType === 'tv' && item.vote_count < 200) return;
                 
                 if (isEnglishOrHebrew || isIsraeli || isGlobalHit) {
                     if (item.poster_path && (item.title || item.name)) {
@@ -165,29 +164,35 @@ class MovieRanker {
                             release_date: item.release_date || item.first_air_date,
                             vote_average: item.vote_average,
                             vote_count: item.vote_count
-                        });
+                        }, targetType);
                     }
                 }
             });
         }
     }
 
-    addMovieToPool(item) {
-        if (!this.data.all.find(m => m.id === item.id)) {
-            this.data.all.push(item);
-            if (!this.data.elo[item.id]) this.data.elo[item.id] = 1000;
+    addMovieToPool(item, targetType) {
+        const targetData = targetType === 'movie' ? this.movieData : this.tvData;
+        if (!targetData.all.find(m => m.id === item.id)) {
+            targetData.all.push(item);
+            if (!targetData.elo[item.id]) targetData.elo[item.id] = 1000;
         }
     }
 
     loadFromLocalStorage() {
         let saved = localStorage.getItem('kenlo_data_v2');
         
-        // Data loss prevention: If no V2 data, try loading V1 legacy data
         if (!saved) {
             const legacy = localStorage.getItem('kenlo_data');
             if (legacy) {
-                saved = legacy;
-                localStorage.removeItem('kenlo_data'); // Safe migration
+                try {
+                    const old = JSON.parse(legacy);
+                    // Format correctly into movieData wrapper!
+                    this.movieData = { ...this.movieData, all: old.all || [], seen: old.seen || [], notSeen: old.notSeen || {}, elo: old.elo || {} };
+                } catch(e) {}
+                localStorage.removeItem('kenlo_data');
+                this.saveToLocalStorage(); // Solidify the migration immediately
+                saved = localStorage.getItem('kenlo_data_v2');
             }
         }
         
@@ -195,6 +200,14 @@ class MovieRanker {
             const parsed = JSON.parse(saved);
             this.movieData = parsed.movieData || this.movieData;
             this.tvData = parsed.tvData || this.tvData;
+            
+            // Clean up the mixed queues from previous race condition bug
+            if (!this.movieData.v3_migration_flush) {
+                this.movieData.all = [];
+                this.tvData.all = [];
+                this.movieData.v3_migration_flush = true;
+                this.saveToLocalStorage();
+            }
             
             // Ensure newly added schema fields exist in loaded data
             if (!this.movieData.history) this.movieData.history = [];
