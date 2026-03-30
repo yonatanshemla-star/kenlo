@@ -103,14 +103,14 @@ body {
     color: #818cf8;
     font-weight: 950;
     margin-left: 2px;
-    text-shadow: 0 0 30px rgba(129, 140, 248, 1);
-    filter: drop-shadow(0 0 10px rgba(129, 140, 248, 0.8));
+    text-shadow: 0 0 15px rgba(129, 140, 248, 0.6); /* Reduced from 30px 1.0 */
+    filter: drop-shadow(0 0 5px rgba(129, 140, 248, 0.4)); /* Reduced from 10px 0.8 */
     transform: scale(1.1) translateY(-2px);
 }
 
 .app-container.mode-tv .logo span {
     color: #22d3ee;
-    text-shadow: 0 0 30px rgba(34, 211, 238, 1);
+    text-shadow: 0 0 15px rgba(34, 211, 238, 0.6);
 }
 
 /* Mode Toggle */
