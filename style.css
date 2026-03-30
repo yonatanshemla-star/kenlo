@@ -181,7 +181,14 @@ body {
 }
 
 .logo {
-    display: none;
+    font-family: var(--font-accent);
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: white;
+}
+
+.logo span {
+    color: var(--accent);
 }
 
 .nav-links {
