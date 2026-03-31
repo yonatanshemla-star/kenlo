@@ -1144,3 +1144,25 @@ input[type="password"], input[type="text"] {
     font-size: 1.5rem;
     margin: 10px 0;
 }
+
+/* Finished Group Styles */
+.group-table.finished h4 {
+    color: #22c55e;
+}
+
+.group-row.winner {
+    background: rgba(241, 196, 15, 0.15) !important;
+    color: #f1c40f !important;
+    border-radius: 8px;
+    font-weight: 700;
+}
+
+.group-row.winner .m-name::before {
+    content: "👑 ";
+}
+
+.group-row.runner-up {
+    color: #cbd5e1;
+    background: rgba(255, 255, 255, 0.05);
+    font-weight: 600;
+}

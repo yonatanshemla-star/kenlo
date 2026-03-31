@@ -768,6 +768,16 @@ class MovieRanker {
                 this.showTournamentView(view);
             };
         });
+
+        // Reset Tournament
+        document.getElementById('reset-t-btn').onclick = () => {
+            if (confirm('בטוח שברצונך לאפס את הטורניר הנוכחי? כל ההתקדמות תימחק.')) {
+                this.data.tournament = null;
+                this.saveToLocalStorage();
+                this.renderTournament();
+                this.showToast('הטורניר אופס');
+            }
+        };
     }
 
     switchBattleMode(mode) {
@@ -1069,11 +1079,18 @@ class MovieRanker {
 
         t.groups.forEach(g => {
             const table = document.createElement('div');
-            table.className = 'group-table';
+            const isFinished = !g.matches.find(m => m.winner === null);
+            table.className = `group-table ${isFinished ? 'finished' : ''}`;
+            
             let rowsHtml = `<div class="group-row group-header"><span class="m-name">סרט</span><span>מש'</span><span>נק'</span><span>ELO</span></div>`;
-            g.members.forEach(m => {
+            g.members.forEach((m, idx) => {
+                let winClass = '';
+                if (isFinished) {
+                    if (idx === 0) winClass = 'winner';
+                    else if (idx === 1) winClass = 'runner-up';
+                }
                 rowsHtml += `
-                    <div class="group-row">
+                    <div class="group-row ${winClass}">
                         <span class="m-name">${m.name}</span>
                         <span>${m.played}</span>
                         <span><strong>${m.points}</strong></span>
@@ -1081,7 +1098,7 @@ class MovieRanker {
                     </div>
                 `;
             });
-            table.innerHTML = `<h4>בית ${g.name}</h4>${rowsHtml}`;
+            table.innerHTML = `<h4>בית ${g.name} ${isFinished ? '✅' : ''}</h4>${rowsHtml}`;
             grid.appendChild(table);
         });
     }
