@@ -751,7 +751,6 @@ class MovieRanker {
             
             if (this.data.tournament && !confirm('יש טורניר פעיל. להתחיל חדש ולמחוק את הקיים?')) return;
             
-            // Allow user to select size based on pool
             let size = 32;
             if (poolSize >= 128) size = 128;
             else if (poolSize >= 64) size = 64;
@@ -762,16 +761,13 @@ class MovieRanker {
             this.initTournament(size);
         };
 
-        document.getElementById('view-t-groups').onclick = () => {
-            this.showTournamentView('groups');
-        };
-
-        document.getElementById('view-t-bracket').onclick = () => {
-            this.showTournamentView('bracket');
-        };
-
-        document.getElementById('back-to-t-dash').onclick = () => this.showTournamentView('dashboard');
-        document.getElementById('back-to-t-dash-2').onclick = () => this.showTournamentView('dashboard');
+        // Persistent Nav
+        document.querySelectorAll('.t-nav-btn').forEach(btn => {
+            btn.onclick = () => {
+                const view = btn.dataset.tView;
+                this.showTournamentView(view);
+            };
+        });
     }
 
     switchBattleMode(mode) {
@@ -801,7 +797,14 @@ class MovieRanker {
 
     showTournamentView(viewName) {
         document.querySelectorAll('.tournament-subview').forEach(v => v.style.display = 'none');
-        document.getElementById(`tournament-${viewName}`).style.display = 'block';
+        const target = document.getElementById(`tournament-${viewName}`);
+        if (target) target.style.display = 'block';
+        
+        // Update Nav active state
+        document.querySelectorAll('.t-nav-btn').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.tView === viewName);
+        });
+
         if (viewName === 'groups') this.renderGroups();
         if (viewName === 'bracket') this.renderBracket();
     }
@@ -915,25 +918,22 @@ class MovieRanker {
     }
 
     renderTournament() {
+        const tNav = document.getElementById('t-nav');
         if (!this.data.tournament) {
             this.showTournamentView('dashboard');
-            document.getElementById('start-t-btn').style.display = 'block';
-            document.getElementById('view-t-groups').style.display = 'none';
-            document.getElementById('view-t-bracket').style.display = 'none';
             document.getElementById('t-current-stage').textContent = 'ממתין';
             document.getElementById('t-played-count').textContent = '0';
+            if (tNav) tNav.style.display = 'none';
             return;
         }
 
         const t = this.data.tournament;
         document.getElementById('t-played-count').textContent = `${t.playedCount} / ${t.totalMatches || '?'}`;
+        if (tNav) tNav.style.display = 'flex';
         
         if (t.status === 'groups') {
             document.getElementById('t-current-stage').textContent = 'בתים';
-            document.getElementById('view-t-groups').style.display = 'block';
-            document.getElementById('view-t-bracket').style.display = 'none';
             
-            // Find next match
             let nextMatch = null;
             let groupIdx = -1;
             for (let i = 0; i < t.groups.length; i++) {
@@ -946,18 +946,16 @@ class MovieRanker {
             }
 
             if (nextMatch) {
+                const group = t.groups[groupIdx];
+                document.getElementById('t-match-label').textContent = `שלב הבתים - בית ${group.name}`;
                 this.renderTournamentMatch(nextMatch, 'groups', groupIdx);
             } else {
-                // Group stage finished!
                 this.showToast('שלב הבתים הסתיים! עוברים לנוקאאוט...');
                 this.generateKnockoutStage();
             }
         } else if (t.status === 'bracket') {
             document.getElementById('t-current-stage').textContent = 'נוקאאוט';
-            document.getElementById('view-t-groups').style.display = 'block';
-            document.getElementById('view-t-bracket').style.display = 'block';
             
-            // Find next match in bracket
             let nextMatch = null;
             let roundIdx = -1;
             for (let i = 0; i < t.bracket.length; i++) {
@@ -970,15 +968,15 @@ class MovieRanker {
             }
 
             if (nextMatch) {
+                const round = t.bracket[roundIdx];
+                document.getElementById('t-match-label').textContent = `שלב הנוקאאוט - ${round.name}`;
                 this.renderTournamentMatch(nextMatch, 'bracket', roundIdx);
             } else {
-                // Check if tournament is over
                 const lastRound = t.bracket[t.bracket.length - 1];
                 const finalMatch = lastRound.matches[0];
                 if (finalMatch.winner) {
                     this.renderTournamentWinner(finalMatch.winner);
                 } else {
-                    this.showToast('ממתין למשחקי השלבים הבאים...');
                     this.showTournamentView('bracket');
                 }
             }
