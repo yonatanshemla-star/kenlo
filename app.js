@@ -811,65 +811,107 @@ class MovieRanker {
         const sortedPool = [...this.data.seen].sort((a,b) => (this.data.elo[b.id]||1000) - (this.data.elo[a.id]||1000));
         const participants = sortedPool.slice(0, size);
         
-        // Shuffle to distribute top seeds across groups (like Champions League pots)
-        const groupsCount = size / 8; // We'll do groups of 8 as requested
-        const groups = [];
-        for (let i = 0; i < groupsCount; i++) {
-            groups.push({
-                name: String.fromCharCode(65 + i),
-                members: [],
-                matches: [],
-                results: {} // { matchId: winnerId }
+        if (size < 16) {
+            // Pure Knockout for small pools
+            const rounds = this.createEmptyBracket(size);
+            
+            // Seed first round
+            this.shuffleArray(participants);
+            rounds[0].matches.forEach((m, idx) => {
+                m.a = participants[idx*2].id;
+                m.b = participants[idx*2+1].id;
             });
-        }
 
-        // Distribute participants into groups in a snake-like or pot-based fashion
-        // Pot 1: Top 1-8, Pot 2: 9-16, etc.
-        for (let potIdx = 0; potIdx < 8; potIdx++) {
-            const pot = participants.slice(potIdx * groupsCount, (potIdx + 1) * groupsCount);
-            this.shuffleArray(pot);
-            pot.forEach((p, gIdx) => {
-                groups[gIdx].members.push({
-                    id: p.id,
-                    name: p.hebrew_title || p.title,
-                    poster: p.poster_path,
-                    points: 0,
-                    played: 0,
-                    wins: 0,
-                    draws: 0,
-                    losses: 0
+            this.data.tournament = {
+                status: 'bracket',
+                participants: participants,
+                groups: [],
+                bracket: rounds,
+                playedCount: 0,
+                totalMatches: rounds.reduce((acc, r) => acc + r.matches.length, 0)
+            };
+        } else {
+            // Groups of 8 (as requested "relatively large groups")
+            const groupsCount = size / 8; 
+            const groups = [];
+            for (let i = 0; i < groupsCount; i++) {
+                groups.push({
+                    name: String.fromCharCode(65 + i),
+                    members: [],
+                    matches: [],
+                    results: {}
                 });
-            });
-        }
-
-        // Generate matches for each group (Round Robin)
-        groups.forEach(group => {
-            for (let i = 0; i < group.members.length; i++) {
-                for (let j = i + 1; j < group.members.length; j++) {
-                    group.matches.push({
-                        id: `${group.name}-${i}-${j}`,
-                        a: group.members[i].id,
-                        b: group.members[j].id,
-                        winner: null
-                    });
-                }
             }
-            this.shuffleArray(group.matches); // Play matches in random order
-        });
 
-        this.data.tournament = {
-            status: 'groups',
-            participants: participants,
-            groups: groups,
-            bracket: null,
-            currentMatch: null,
-            playedCount: 0,
-            totalMatches: groups.reduce((acc, g) => acc + g.matches.length, 0)
-        };
+            // Distribute participants into pots
+            const itemsPerGroup = 8;
+            for (let potIdx = 0; potIdx < itemsPerGroup; potIdx++) {
+                const pot = participants.slice(potIdx * groupsCount, (potIdx + 1) * groupsCount);
+                this.shuffleArray(pot);
+                pot.forEach((p, gIdx) => {
+                    groups[gIdx].members.push({
+                        id: p.id,
+                        name: p.hebrew_title || p.title,
+                        poster: p.poster_path,
+                        points: 0,
+                        played: 0,
+                        wins: 0,
+                        draws: 0,
+                        losses: 0
+                    });
+                });
+            }
+
+            // Generate matches for each group (Round Robin)
+            groups.forEach(group => {
+                for (let i = 0; i < group.members.length; i++) {
+                    for (let j = i + 1; j < group.members.length; j++) {
+                        group.matches.push({
+                            id: `${group.name}-${i}-${j}`,
+                            a: group.members[i].id,
+                            b: group.members[j].id,
+                            winner: null
+                        });
+                    }
+                }
+                this.shuffleArray(group.matches); 
+            });
+
+            this.data.tournament = {
+                status: 'groups',
+                participants: participants,
+                groups: groups,
+                bracket: null,
+                playedCount: 0,
+                totalMatches: groups.reduce((acc, g) => acc + g.matches.length, 0)
+            };
+        }
 
         this.saveToLocalStorage();
         this.renderTournament();
-        this.showToast(`טורניר ${size} סרטים יצא לדרך!`);
+        this.showToast(`טורניר ${size} ${this.getTerm('plural')} יצא לדרך!`);
+    }
+
+    createEmptyBracket(size) {
+        const rounds = [];
+        let currentSize = size;
+        while (currentSize >= 2) {
+            const matchesCount = currentSize / 2;
+            let roundName = '';
+            if (currentSize === 2) roundName = 'גמר';
+            else if (currentSize === 4) roundName = 'חצי גמר';
+            else if (currentSize === 8) roundName = 'רבע גמר';
+            else if (currentSize === 16) roundName = 'שמינית גמר';
+            else roundName = `שלב ${currentSize}`;
+
+            const round = { name: roundName, matches: [] };
+            for (let i = 0; i < matchesCount; i++) {
+                round.matches.push({ a: null, b: null, winner: null });
+            }
+            rounds.push(round);
+            currentSize /= 2;
+        }
+        return rounds;
     }
 
     renderTournament() {
@@ -977,6 +1019,11 @@ class MovieRanker {
         match.winner = winnerId;
         t.playedCount++;
 
+        // 1. Update regular ELO for tournament impact
+        const loserId = (winnerId === match.a) ? match.b : match.a;
+        const outcome = (winnerId === match.a) ? 1 : 0;
+        this.updateElo(match.a, match.b, outcome);
+
         if (stage === 'groups') {
             const group = t.groups[stageIdx];
             const m1 = group.members.find(m => m.id === match.a);
@@ -1004,6 +1051,11 @@ class MovieRanker {
                 // Final!
                 t.status = 'finished';
                 t.winnerId = winnerId;
+                
+                // 2. Winner's Grand Champion Bonus (+100 ELO)
+                if (!this.data.elo[winnerId]) this.data.elo[winnerId] = 1000;
+                this.data.elo[winnerId] += 100;
+                this.showToast('🏆 בונוס אלוף הוענק!');
             }
         }
 
@@ -1044,32 +1096,9 @@ class MovieRanker {
             winners.push(g.members[1].id); // 2nd place
         });
 
-        // winners size will be groupsCount * 2. 
-        // e.g. 4 groups -> 8 winners -> Quarterfinals.
-        // 8 groups -> 16 winners -> Round of 16.
-        const size = winners.length;
-        const rounds = [];
-        let currentSize = size;
-        
-        while (currentSize >= 2) {
-            const matchesCount = currentSize / 2;
-            let roundName = '';
-            if (currentSize === 2) roundName = 'גמר';
-            else if (currentSize === 4) roundName = 'חצי גמר';
-            else if (currentSize === 8) roundName = 'רבע גמר';
-            else if (currentSize === 16) roundName = 'שמינית גמר';
-            else roundName = `שלב ${currentSize}`;
-
-            const round = { name: roundName, matches: [] };
-            for (let i = 0; i < matchesCount; i++) {
-                round.matches.push({ a: null, b: null, winner: null });
-            }
-            rounds.push(round);
-            currentSize /= 2;
-        }
+        const rounds = this.createEmptyBracket(winners.length);
 
         // Seed first round: 1st place vs 2nd place from different groups
-        // Randomly pair 1sts with 2nds
         const groupFirsts = t.groups.map(g => g.members[0].id);
         const groupSeconds = t.groups.map(g => g.members[1].id);
         this.shuffleArray(groupSeconds);
