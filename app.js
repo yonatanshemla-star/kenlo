@@ -30,7 +30,8 @@ class MovieRanker {
             history: [],
             elo: {},
             stats: {}, // { id: { wins: 0, total: 0 } }
-            pages: { 'movie/popular':0, 'movie/top_rated':0, 'discover/movie':0, 'movie/now_playing':0 }
+            pages: { 'movie/popular':0, 'movie/top_rated':0, 'discover/movie':0, 'movie/now_playing':0 },
+            tournament: null
         };
         this.tvData = {
             all: [],
@@ -40,7 +41,8 @@ class MovieRanker {
             history: [],
             elo: {},
             stats: {}, // { id: { wins: 0, total: 0 } }
-            pages: { 'tv/popular':0, 'tv/top_rated':0, 'discover/tv':0, 'tv/on_the_air':0, 'tv/israeli':0 }
+            pages: { 'tv/popular':0, 'tv/top_rated':0, 'discover/tv':0, 'tv/on_the_air':0, 'tv/israeli':0 },
+            tournament: null
         };
 
         this.currentView = 'swipe';
@@ -59,6 +61,7 @@ class MovieRanker {
         this.views = document.querySelectorAll('.view');
         this.navLinks = document.querySelectorAll('.nav-links li');
         this.userName = localStorage.getItem('kenlo_user_name') || '';
+        this.battleMode = localStorage.getItem('kenlo_battle_mode') || 'dual';
         this.init();
     }
 
@@ -90,6 +93,7 @@ class MovieRanker {
         this.updateHeaderName();
         this.setupModeToggle();
         this.renderGenreSelectors();
+        this.setupTournamentEvents();
         this.renderCurrentView();
         
         if (this.tmdbKey) {
@@ -223,6 +227,8 @@ class MovieRanker {
             // Ensure newly added schema fields exist in loaded data
             if (!this.movieData.stats) this.movieData.stats = {};
             if (!this.tvData.stats) this.tvData.stats = {};
+            if (!this.movieData.tournament) this.movieData.tournament = null;
+            if (!this.tvData.tournament) this.tvData.tournament = null;
             
             this.renderCurrentView();
         } else {
@@ -345,7 +351,10 @@ class MovieRanker {
 
     renderCurrentView() {
         if (this.currentView === 'swipe') this.renderSwipe();
-        if (this.currentView === 'battle') this.renderBattle();
+        if (this.currentView === 'battle') {
+            const mode = localStorage.getItem('kenlo_battle_mode') || 'dual';
+            this.switchBattleMode(mode);
+        }
         if (this.currentView === 'stats') this.renderStats();
         if (this.currentView === 'watchlist') this.renderWatchlist();
         this.updateCounts();
@@ -724,6 +733,419 @@ class MovieRanker {
         const s = this.data.stats[id];
         if (!s || s.total === 0) return 0;
         return Math.round((s.wins / s.total) * 100);
+    }
+
+    // --- Tournament Management ---
+    setupTournamentEvents() {
+        // Mode Switcher
+        document.getElementById('mode-dual').onclick = () => this.switchBattleMode('dual');
+        document.getElementById('mode-tournament').onclick = () => this.switchBattleMode('tournament');
+
+        // Tournament Dashboard Actions
+        document.getElementById('start-t-btn').onclick = () => {
+            const poolSize = this.data.seen.length;
+            if (poolSize < 8) {
+                alert('צריך לפחות 8 סרטים שראית כדי להתחיל טורניר!');
+                return;
+            }
+            
+            if (this.data.tournament && !confirm('יש טורניר פעיל. להתחיל חדש ולמחוק את הקיים?')) return;
+            
+            // Allow user to select size based on pool
+            let size = 32;
+            if (poolSize >= 128) size = 128;
+            else if (poolSize >= 64) size = 64;
+            else if (poolSize >= 32) size = 32;
+            else if (poolSize >= 16) size = 16;
+            else size = 8;
+
+            this.initTournament(size);
+        };
+
+        document.getElementById('view-t-groups').onclick = () => {
+            this.showTournamentView('groups');
+        };
+
+        document.getElementById('view-t-bracket').onclick = () => {
+            this.showTournamentView('bracket');
+        };
+
+        document.getElementById('back-to-t-dash').onclick = () => this.showTournamentView('dashboard');
+        document.getElementById('back-to-t-dash-2').onclick = () => this.showTournamentView('dashboard');
+    }
+
+    switchBattleMode(mode) {
+        this.battleMode = mode;
+        localStorage.setItem('kenlo_battle_mode', mode);
+        
+        const dualContainer = document.getElementById('dual-arena-container');
+        const tContainer = document.getElementById('tournament-container');
+        const dualBtn = document.getElementById('mode-dual');
+        const tBtn = document.getElementById('mode-tournament');
+
+        if (mode === 'dual') {
+            dualContainer.style.display = 'block';
+            tContainer.style.display = 'none';
+            dualBtn.classList.add('active');
+            tBtn.classList.remove('active');
+            this.renderBattle();
+        } else {
+            dualContainer.style.display = 'none';
+            tContainer.style.display = 'block';
+            dualBtn.classList.remove('active');
+            tBtn.classList.add('active');
+            this.renderTournament();
+        }
+        if (window.lucide) window.lucide.createIcons();
+    }
+
+    showTournamentView(viewName) {
+        document.querySelectorAll('.tournament-subview').forEach(v => v.style.display = 'none');
+        document.getElementById(`tournament-${viewName}`).style.display = 'block';
+        if (viewName === 'groups') this.renderGroups();
+        if (viewName === 'bracket') this.renderBracket();
+    }
+
+    initTournament(size) {
+        // Seeding: Sort by ELO
+        const sortedPool = [...this.data.seen].sort((a,b) => (this.data.elo[b.id]||1000) - (this.data.elo[a.id]||1000));
+        const participants = sortedPool.slice(0, size);
+        
+        // Shuffle to distribute top seeds across groups (like Champions League pots)
+        const groupsCount = size / 8; // We'll do groups of 8 as requested
+        const groups = [];
+        for (let i = 0; i < groupsCount; i++) {
+            groups.push({
+                name: String.fromCharCode(65 + i),
+                members: [],
+                matches: [],
+                results: {} // { matchId: winnerId }
+            });
+        }
+
+        // Distribute participants into groups in a snake-like or pot-based fashion
+        // Pot 1: Top 1-8, Pot 2: 9-16, etc.
+        for (let potIdx = 0; potIdx < 8; potIdx++) {
+            const pot = participants.slice(potIdx * groupsCount, (potIdx + 1) * groupsCount);
+            this.shuffleArray(pot);
+            pot.forEach((p, gIdx) => {
+                groups[gIdx].members.push({
+                    id: p.id,
+                    name: p.hebrew_title || p.title,
+                    poster: p.poster_path,
+                    points: 0,
+                    played: 0,
+                    wins: 0,
+                    draws: 0,
+                    losses: 0
+                });
+            });
+        }
+
+        // Generate matches for each group (Round Robin)
+        groups.forEach(group => {
+            for (let i = 0; i < group.members.length; i++) {
+                for (let j = i + 1; j < group.members.length; j++) {
+                    group.matches.push({
+                        id: `${group.name}-${i}-${j}`,
+                        a: group.members[i].id,
+                        b: group.members[j].id,
+                        winner: null
+                    });
+                }
+            }
+            this.shuffleArray(group.matches); // Play matches in random order
+        });
+
+        this.data.tournament = {
+            status: 'groups',
+            participants: participants,
+            groups: groups,
+            bracket: null,
+            currentMatch: null,
+            playedCount: 0,
+            totalMatches: groups.reduce((acc, g) => acc + g.matches.length, 0)
+        };
+
+        this.saveToLocalStorage();
+        this.renderTournament();
+        this.showToast(`טורניר ${size} סרטים יצא לדרך!`);
+    }
+
+    renderTournament() {
+        if (!this.data.tournament) {
+            this.showTournamentView('dashboard');
+            document.getElementById('start-t-btn').style.display = 'block';
+            document.getElementById('view-t-groups').style.display = 'none';
+            document.getElementById('view-t-bracket').style.display = 'none';
+            document.getElementById('t-current-stage').textContent = 'ממתין';
+            document.getElementById('t-played-count').textContent = '0';
+            return;
+        }
+
+        const t = this.data.tournament;
+        document.getElementById('t-played-count').textContent = `${t.playedCount} / ${t.totalMatches || '?'}`;
+        
+        if (t.status === 'groups') {
+            document.getElementById('t-current-stage').textContent = 'בתים';
+            document.getElementById('view-t-groups').style.display = 'block';
+            document.getElementById('view-t-bracket').style.display = 'none';
+            
+            // Find next match
+            let nextMatch = null;
+            let groupIdx = -1;
+            for (let i = 0; i < t.groups.length; i++) {
+                const match = t.groups[i].matches.find(m => m.winner === null);
+                if (match) {
+                    nextMatch = match;
+                    groupIdx = i;
+                    break;
+                }
+            }
+
+            if (nextMatch) {
+                this.renderTournamentMatch(nextMatch, 'groups', groupIdx);
+            } else {
+                // Group stage finished!
+                this.showToast('שלב הבתים הסתיים! עוברים לנוקאאוט...');
+                this.generateKnockoutStage();
+            }
+        } else if (t.status === 'bracket') {
+            document.getElementById('t-current-stage').textContent = 'נוקאאוט';
+            document.getElementById('view-t-groups').style.display = 'block';
+            document.getElementById('view-t-bracket').style.display = 'block';
+            
+            // Find next match in bracket
+            let nextMatch = null;
+            let roundIdx = -1;
+            for (let i = 0; i < t.bracket.length; i++) {
+                const match = t.bracket[i].matches.find(m => m.winner === null && m.a && m.b);
+                if (match) {
+                    nextMatch = match;
+                    roundIdx = i;
+                    break;
+                }
+            }
+
+            if (nextMatch) {
+                this.renderTournamentMatch(nextMatch, 'bracket', roundIdx);
+            } else {
+                // Check if tournament is over
+                const lastRound = t.bracket[t.bracket.length - 1];
+                const finalMatch = lastRound.matches[0];
+                if (finalMatch.winner) {
+                    this.renderTournamentWinner(finalMatch.winner);
+                } else {
+                    this.showToast('ממתין למשחקי השלבים הבאים...');
+                    this.showTournamentView('bracket');
+                }
+            }
+        } else if (t.status === 'finished') {
+             document.getElementById('t-current-stage').textContent = 'הסתיים';
+             this.renderTournamentWinner(t.winnerId);
+        }
+    }
+
+    renderTournamentMatch(match, stage, stageIdx) {
+        this.showTournamentView('match');
+        const arena = document.getElementById('t-battle-arena');
+        const movieA = this.data.seen.find(m => m.id === match.a);
+        const movieB = this.data.seen.find(m => m.id === match.b);
+
+        if (!movieA || !movieB) {
+            console.error("Match movies not found", match);
+            return;
+        }
+
+        arena.innerHTML = `<div class="battle-card" id="t-movie-a"></div><div class="vs">נגד</div><div class="battle-card" id="t-movie-b"></div>`;
+        
+        const renderCard = (id, movie) => {
+            const c = document.getElementById(id);
+            const url = movie.poster_path ? `https://image.tmdb.org/t/p/w500${movie.poster_path}` : 'https://via.placeholder.com/500x750';
+            c.innerHTML = `<img src="${url}"> <div class="info"><h3>${movie.hebrew_title || movie.title}</h3><small>${movie.title}</small></div>`;
+            c.onclick = () => {
+                this.handleTournamentWinner(movie.id, match, stage, stageIdx);
+            };
+        };
+
+        renderCard('t-movie-a', movieA);
+        renderCard('t-movie-b', movieB);
+    }
+
+    handleTournamentWinner(winnerId, match, stage, stageIdx) {
+        const t = this.data.tournament;
+        match.winner = winnerId;
+        t.playedCount++;
+
+        if (stage === 'groups') {
+            const group = t.groups[stageIdx];
+            const m1 = group.members.find(m => m.id === match.a);
+            const m2 = group.members.find(m => m.id === match.b);
+            
+            m1.played++; m2.played++;
+            if (winnerId === m1.id) {
+                m1.points += 3; m1.wins++; m2.losses++;
+            } else {
+                m2.points += 3; m2.wins++; m1.losses++;
+            }
+            // Sort group members by points, then ELO
+            group.members.sort((a,b) => b.points - a.points || (this.data.elo[b.id]||1000) - (this.data.elo[a.id]||1000));
+        } else {
+            // Bracket: Advance winner to next round
+            const currentRoundIdx = stageIdx;
+            if (currentRoundIdx < t.bracket.length - 1) {
+                const nextRound = t.bracket[currentRoundIdx + 1];
+                const matchInRoundIdx = t.bracket[currentRoundIdx].matches.indexOf(match);
+                const nextMatchIdx = Math.floor(matchInRoundIdx / 2);
+                const nextMatch = nextRound.matches[nextMatchIdx];
+                if (matchInRoundIdx % 2 === 0) nextMatch.a = winnerId;
+                else nextMatch.b = winnerId;
+            } else {
+                // Final!
+                t.status = 'finished';
+                t.winnerId = winnerId;
+            }
+        }
+
+        this.saveToLocalStorage();
+        this.renderTournament();
+    }
+
+    renderGroups() {
+        const grid = document.getElementById('groups-grid');
+        grid.innerHTML = '';
+        const t = this.data.tournament;
+        if (!t || !t.groups) return;
+
+        t.groups.forEach(g => {
+            const table = document.createElement('div');
+            table.className = 'group-table';
+            let rowsHtml = `<div class="group-row group-header"><span class="m-name">סרט</span><span>מש'</span><span>נק'</span><span>ELO</span></div>`;
+            g.members.forEach(m => {
+                rowsHtml += `
+                    <div class="group-row">
+                        <span class="m-name">${m.name}</span>
+                        <span>${m.played}</span>
+                        <span><strong>${m.points}</strong></span>
+                        <span><small>${this.data.elo[m.id]||1000}</small></span>
+                    </div>
+                `;
+            });
+            table.innerHTML = `<h4>בית ${g.name}</h4>${rowsHtml}`;
+            grid.appendChild(table);
+        });
+    }
+
+    generateKnockoutStage() {
+        const t = this.data.tournament;
+        const winners = [];
+        t.groups.forEach(g => {
+            winners.push(g.members[0].id); // 1st place
+            winners.push(g.members[1].id); // 2nd place
+        });
+
+        // winners size will be groupsCount * 2. 
+        // e.g. 4 groups -> 8 winners -> Quarterfinals.
+        // 8 groups -> 16 winners -> Round of 16.
+        const size = winners.length;
+        const rounds = [];
+        let currentSize = size;
+        
+        while (currentSize >= 2) {
+            const matchesCount = currentSize / 2;
+            let roundName = '';
+            if (currentSize === 2) roundName = 'גמר';
+            else if (currentSize === 4) roundName = 'חצי גמר';
+            else if (currentSize === 8) roundName = 'רבע גמר';
+            else if (currentSize === 16) roundName = 'שמינית גמר';
+            else roundName = `שלב ${currentSize}`;
+
+            const round = { name: roundName, matches: [] };
+            for (let i = 0; i < matchesCount; i++) {
+                round.matches.push({ a: null, b: null, winner: null });
+            }
+            rounds.push(round);
+            currentSize /= 2;
+        }
+
+        // Seed first round: 1st place vs 2nd place from different groups
+        // Randomly pair 1sts with 2nds
+        const groupFirsts = t.groups.map(g => g.members[0].id);
+        const groupSeconds = t.groups.map(g => g.members[1].id);
+        this.shuffleArray(groupSeconds);
+
+        rounds[0].matches.forEach((m, idx) => {
+            m.a = groupFirsts[idx];
+            m.b = groupSeconds[idx];
+        });
+
+        t.bracket = rounds;
+        t.status = 'bracket';
+        t.totalMatches += rounds.reduce((acc, r) => acc + r.matches.length, 0);
+        this.saveToLocalStorage();
+        this.renderTournament();
+        this.showTournamentView('bracket');
+    }
+
+    renderBracket() {
+        const view = document.getElementById('bracket-view');
+        view.innerHTML = '';
+        const t = this.data.tournament;
+        if (!t || !t.bracket) return;
+
+        t.bracket.forEach(round => {
+            const container = document.createElement('div');
+            container.className = 'round-container';
+            container.innerHTML = `<div class="round-name">${round.name}</div>`;
+            round.matches.forEach(m => {
+                const teamA = this.data.seen.find(mov => mov.id === m.a);
+                const teamB = this.data.seen.find(mov => mov.id === m.b);
+                const box = document.createElement('div');
+                box.className = 'match-box';
+                box.innerHTML = `
+                    <div class="match-team ${m.winner && m.winner === m.a ? 'winner' : ''}">
+                        <img src="${teamA ? 'https://image.tmdb.org/t/p/w92'+teamA.poster_path : ''}">
+                        <span>${teamA ? (teamA.hebrew_title || teamA.title) : '???'}</span>
+                    </div>
+                    <div class="match-team ${m.winner && m.winner === m.b ? 'winner' : ''}">
+                        <img src="${teamB ? 'https://image.tmdb.org/t/p/w92'+teamB.poster_path : ''}">
+                        <span>${teamB ? (teamB.hebrew_title || teamB.title) : '???'}</span>
+                    </div>
+                `;
+                container.appendChild(box);
+            });
+            view.appendChild(container);
+        });
+    }
+
+    renderTournamentWinner(id) {
+        const movie = this.data.seen.find(m => m.id === id);
+        this.showTournamentView('dashboard');
+        const dash = document.getElementById('tournament-dashboard');
+        
+        const winnerEl = document.createElement('div');
+        winnerEl.className = 'winner-announcement';
+        winnerEl.style.marginTop = '20px';
+        winnerEl.style.textAlign = 'center';
+        winnerEl.style.padding = '20px';
+        winnerEl.style.background = 'rgba(34, 197, 94, 0.1)';
+        winnerEl.style.borderRadius = '20px';
+        winnerEl.style.border = '2px solid #22c55e';
+        
+        winnerEl.innerHTML = `
+            <div style="font-size: 2rem; margin-bottom: 10px;">🏆 המנצח!</div>
+            <img src="https://image.tmdb.org/t/p/w500${movie.poster_path}" style="width: 150px; border-radius: 10px; margin-bottom: 15px;">
+            <h2>${movie.hebrew_title || movie.title}</h2>
+            <p>לוחם אמיץ שגבר על כולם!</p>
+            <button class="btn-primary" style="margin-top: 15px;" onclick="location.reload()">טורניר חדש</button>
+        `;
+        
+        // Remove existing winner announcement if any
+        const existing = dash.querySelector('.winner-announcement');
+        if (existing) existing.remove();
+        
+        dash.appendChild(winnerEl);
+        document.getElementById('start-t-btn').style.display = 'none';
     }
 
     // --- Stats & Watchlist ---

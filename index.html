@@ -60,15 +60,59 @@
             <section id="battle-view" class="view">
                 <div class="view-header">
                     <h1>מי לוקח?</h1>
-                    <p id="battle-desc">בחר את הסרט המועדף עליך מבין השניים</p>
+                    <div class="battle-mode-switcher">
+                        <button class="mode-btn active" id="mode-dual">דו-קרב</button>
+                        <button class="mode-btn" id="mode-tournament">טורניר</button>
+                    </div>
                 </div>
-                <!-- Genre filter removed -->
-                <div class="battle-arena" id="battle-arena">
-                    <div class="battle-card" id="movie-a"></div>
-                    <div class="vs">נגד</div>
-                    <div class="battle-card" id="movie-b"></div>
+
+                <!-- Regular Dual Arena -->
+                <div id="dual-arena-container">
+                    <p id="battle-desc" class="view-subtitle">בחר את הסרט המועדף עליך מבין השניים</p>
+                    <div class="battle-arena" id="battle-arena">
+                        <div class="battle-card" id="movie-a"></div>
+                        <div class="vs">נגד</div>
+                        <div class="battle-card" id="movie-b"></div>
+                    </div>
+                    <div id="battle-stats-info" class="battle-info">סימנת <span id="seen-count">0</span> סרטים עד כה</div>
                 </div>
-                <div id="battle-stats-info" class="battle-info">סימנת <span id="seen-count">0</span> סרטים עד כה</div>
+
+                <!-- Tournament Container -->
+                <div id="tournament-container" style="display: none;">
+                    <div id="tournament-dashboard" class="tournament-subview">
+                        <div class="tournament-stats">
+                            <div class="t-stat-card">
+                                <span class="label">שלב</span>
+                                <span class="value" id="t-current-stage">חדש</span>
+                            </div>
+                            <div class="t-stat-card">
+                                <span class="label">משחקים</span>
+                                <span class="value" id="t-played-count">0</span>
+                            </div>
+                        </div>
+                        <div class="tournament-actions">
+                            <button class="btn-primary btn-block" id="start-t-btn">התחל טורניר חדש</button>
+                            <button class="btn-secondary btn-block" id="view-t-bracket" style="display: none;">הצג עץ טורניר</button>
+                            <button class="btn-secondary btn-block" id="view-t-groups" style="display: none;">הצג שלב בתים</button>
+                        </div>
+                    </div>
+
+                    <div id="tournament-groups" class="tournament-subview" style="display: none;">
+                        <button class="btn-back" id="back-to-t-dash"><i data-lucide="arrow-right"></i> חזרה ללוח בקרה</button>
+                        <div id="groups-grid" class="groups-grid"></div>
+                    </div>
+
+                    <div id="tournament-bracket" class="tournament-subview" style="display: none;">
+                        <button class="btn-back" id="back-to-t-dash-2"><i data-lucide="arrow-right"></i> חזרה ללוח בקרה</button>
+                        <div id="bracket-view" class="bracket-view"></div>
+                    </div>
+
+                    <div id="tournament-match" class="tournament-subview" style="display: none;">
+                        <div class="battle-arena" id="t-battle-arena">
+                            <!-- Tournament match logic here -->
+                        </div>
+                    </div>
+                </div>
             </section>
 
             <!-- Stats View -->
