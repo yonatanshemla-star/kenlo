@@ -1088,26 +1088,26 @@ input[type="password"], input[type="text"] {
     font-weight: 600;
 }
 
-.btn-t-reset {
-    background: transparent;
+.btn-t-reset-text {
+    background: #ef4444;
+    color: white;
     border: none;
-    color: var(--text-secondary);
+    padding: 4px 12px;
+    border-radius: 8px;
+    font-size: 0.75rem;
+    font-weight: 700;
     cursor: pointer;
-    padding: 5px;
-    display: flex;
-    align-items: center;
-    border-radius: 50%;
     transition: all 0.2s;
+    box-shadow: 0 2px 4px rgba(239, 68, 68, 0.2);
 }
 
-.btn-t-reset:hover {
-    background: rgba(239, 68, 68, 0.2);
-    color: #ef4444;
+.btn-t-reset-text:hover {
+    background: #dc2626;
+    transform: translateY(-1px);
 }
 
-.btn-t-reset i {
-    width: 18px;
-    height: 18px;
+.btn-t-reset-text:active {
+    transform: translateY(0);
 }
 
 .t-match-label {
