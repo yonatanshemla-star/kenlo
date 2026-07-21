@@ -1871,3 +1871,39 @@ input[type="password"], input[type="text"] {
     font-size: 0.75rem;
     font-weight: 700;
 }
+
+/* Top 10 DNA Card Styles */
+.dna-card {
+    background: linear-gradient(135deg, rgba(241, 196, 15, 0.1), rgba(30, 41, 59, 0.7));
+    border: 1px solid rgba(241, 196, 15, 0.3);
+}
+
+.dna-stats-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.dna-box {
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid var(--glass-border);
+    border-radius: 12px;
+    padding: 10px 8px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+}
+
+.dna-lbl {
+    font-size: 0.7rem;
+    color: var(--text-secondary);
+    margin-bottom: 4px;
+}
+
+.dna-val {
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: #f1c40f;
+}

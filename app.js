@@ -716,12 +716,29 @@ class MovieRanker {
     }
 
     getNormScore(id) {
-        // Map 800-1600 ELO range to 1.0-10.0 scale
         const elo = this.data.elo[id] || 1000;
-        let score = ((elo - 800) / 80).toFixed(1);
-        if (score > 10.0) score = 10.0;
-        if (score < 1.0) score = 1.0;
-        return score;
+        const stats = this.data.stats[id] || { wins: 0, total: 0 };
+        const winRate = stats.total > 0 ? (stats.wins / stats.total) : 0.5;
+
+        // Dynamic base mapping: Elo 1000 -> 5.0 midpoint
+        // Every 35 ELO points adds 1.0 to rating
+        let baseScore = 5.0 + ((elo - 1000) / 35);
+
+        // Win-rate & confidence bonus for dominant streaks
+        let streakBonus = 0;
+        if (stats.total >= 2) {
+            if (winRate >= 0.9) {
+                // Dominant win rate (90-100% win rate)
+                streakBonus = Math.min(stats.total * 0.15, 2.5);
+            } else if (winRate >= 0.75) {
+                streakBonus = Math.min(stats.total * 0.08, 1.2);
+            }
+        }
+
+        let finalScore = (baseScore + streakBonus).toFixed(1);
+        if (finalScore > 10.0) finalScore = "10.0";
+        if (finalScore < 1.0) finalScore = "1.0";
+        return finalScore;
     }
 
     getWinRate(id) {
@@ -1114,7 +1131,7 @@ class MovieRanker {
             const isFinished = !g.matches.find(m => m.winner === null);
             table.className = `group-table ${isFinished ? 'finished' : ''}`;
             
-            let rowsHtml = `<div class="group-row group-header"><span class="m-name">סרט</span><span>מש'</span><span>נק'</span><span>ELO</span></div>`;
+            let rowsHtml = `<div class="group-row group-header"><span class="m-name">סרט</span><span>מש'</span><span>נק'</span><span>ציון</span></div>`;
             g.members.forEach((m, idx) => {
                 let winClass = '';
                 if (idx === 0) winClass = isFinished ? 'winner' : 'leading';
@@ -1125,7 +1142,7 @@ class MovieRanker {
                         <span class="m-name">${m.name}</span>
                         <span>${m.played}</span>
                         <span><strong>${m.points}</strong></span>
-                        <span><small>${this.data.elo[m.id]||1000}</small></span>
+                        <span><small>${this.getNormScore(m.id)}</small></span>
                     </div>
                 `;
             });
@@ -1340,7 +1357,35 @@ class MovieRanker {
         const avgMinutes = Math.round(totalMinutes / seen.length);
         const totalBattles = Object.values(this.data.stats).reduce((acc, s) => acc + (s.total || 0), 0);
 
-        // 2. Decades Distribution
+        // 2. Quality Tier Distribution (Score Breakdown)
+        const qualityTiers = { masterpiece: 0, excelente: 0, good: 0, average: 0 };
+        seen.forEach(m => {
+            const score = parseFloat(this.getNormScore(m.id));
+            if (score >= 9.0) qualityTiers.masterpiece++;
+            else if (score >= 8.0) qualityTiers.excelente++;
+            else if (score >= 7.0) qualityTiers.good++;
+            else qualityTiers.average++;
+        });
+
+        // 3. Top 10 DNA Stats
+        const sortedByScore = [...seen].sort((a, b) => parseFloat(this.getNormScore(b.id)) - parseFloat(this.getNormScore(a.id)));
+        const top10 = sortedByScore.slice(0, 10);
+        const top10Genres = {};
+        let top10YearSum = 0;
+        top10.forEach(m => {
+            const yr = m.release_date ? parseInt(m.release_date.split('-')[0]) : 2018;
+            top10YearSum += yr;
+            if (m.genre_ids) {
+                m.genre_ids.forEach(gId => {
+                    top10Genres[gId] = (top10Genres[gId] || 0) + 1;
+                });
+            }
+        });
+        const top10AvgYear = top10.length > 0 ? Math.round(top10YearSum / top10.length) : '-';
+        const dominantTopGenreId = Object.entries(top10Genres).sort((a, b) => b[1] - a[1])[0]?.[0];
+        const dominantTopGenreName = dominantTopGenreId ? GENRES[dominantTopGenreId] : 'מגוון';
+
+        // 4. Decades Distribution
         const decades = { '70s': 0, '80s': 0, '90s': 0, '2000s': 0, '2010s': 0, '2020s': 0 };
         seen.forEach(m => {
             const yr = m.release_date ? parseInt(m.release_date.split('-')[0]) : 2020;
@@ -1352,33 +1397,35 @@ class MovieRanker {
             else decades['2020s']++;
         });
 
-        // 3. Top Genres by ELO
-        const genreElos = {};
+        // 5. Top Genres by Personal Rating
+        const genreScores = {};
         seen.forEach(m => {
             if (m.genre_ids) {
                 m.genre_ids.forEach(gId => {
-                    if (!genreElos[gId]) genreElos[gId] = { sum: 0, count: 0 };
-                    genreElos[gId].sum += (this.data.elo[m.id] || 1000);
-                    genreElos[gId].count++;
+                    if (!genreScores[gId]) genreScores[gId] = { sum: 0, count: 0 };
+                    genreScores[gId].sum += parseFloat(this.getNormScore(m.id));
+                    genreScores[gId].count++;
                 });
             }
         });
-        const genreStats = Object.entries(genreElos)
-            .map(([gId, d]) => ({ name: GENRES[gId] || 'כללי', avgElo: Math.round(d.sum / d.count), count: d.count }))
-            .sort((a, b) => b.avgElo - a.avgElo)
-            .slice(0, 5);
+        const genreStats = Object.entries(genreScores)
+            .map(([gId, d]) => ({ name: GENRES[gId] || 'כללי', avgRating: (d.sum / d.count).toFixed(1), count: d.count }))
+            .sort((a, b) => b.avgRating - a.avgRating)
+            .slice(0, 6);
 
-        // 4. Hidden Gems vs. Overrated
-        const sortedByElo = [...seen].sort((a, b) => (this.data.elo[b.id] || 1000) - (this.data.elo[a.id] || 1000));
-        const top30Percent = sortedByElo.slice(0, Math.ceil(seen.length * 0.35));
-        const bottom30Percent = sortedByElo.slice(Math.floor(seen.length * 0.65));
+        // 6. Hidden Gems vs Overrated
+        const top35Percent = sortedByScore.slice(0, Math.ceil(seen.length * 0.35));
+        const bottom35Percent = sortedByScore.slice(Math.floor(seen.length * 0.65));
 
-        const hiddenGems = top30Percent.filter(m => (m.vote_average || 7) < 7.4).slice(0, 3);
-        const overrated = bottom30Percent.filter(m => (m.vote_average || 7) > 7.6).slice(0, 3);
+        const hiddenGems = top35Percent.filter(m => (m.vote_average || 7) < 7.4).slice(0, 3);
+        const overrated = bottom35Percent.filter(m => (m.vote_average || 7) > 7.6).slice(0, 3);
+
+        // 7. Low Battle Alert (Items needing more votes)
+        const lowBattles = seen.filter(m => (this.data.stats[m.id]?.total || 0) < 2).slice(0, 4);
 
         container.innerHTML = `
             <div class="analytics-grid">
-                <!-- Overview Stats Grid -->
+                <!-- Overview Widgets -->
                 <div class="stat-card-widget">
                     <div class="widget-icon">⏱️</div>
                     <div class="widget-val">${totalHours} שעות</div>
@@ -1393,6 +1440,46 @@ class MovieRanker {
                     <div class="widget-icon">⚔️</div>
                     <div class="widget-val">${totalBattles}</div>
                     <div class="widget-lbl">סה"כ קרבות בדירוג</div>
+                </div>
+
+                <!-- Top 10 DNA Card -->
+                <div class="analytics-section-card full-width dna-card">
+                    <h3>👑 ה-DNA של ה-Top 10 שלך</h3>
+                    <div class="dna-stats-row">
+                        <div class="dna-box">
+                            <span class="dna-lbl">ז'אנר דומיננטי</span>
+                            <span class="dna-val">${dominantTopGenreName}</span>
+                        </div>
+                        <div class="dna-box">
+                            <span class="dna-lbl">שנת יציאה ממוצעת בטופ</span>
+                            <span class="dna-val">${top10AvgYear}</span>
+                        </div>
+                        <div class="dna-box">
+                            <span class="dna-lbl">סרט ראשון בטופ</span>
+                            <span class="dna-val">${top10[0] ? (top10[0].hebrew_title || top10[0].title) : '-'}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Quality Tiers Card -->
+                <div class="analytics-section-card full-width">
+                    <h3>🌟 תפרוסת איכות הדירוג שלך</h3>
+                    <div class="decades-list">
+                        ${[
+                            { label: '👑 מאסטרפיס (9.0 - 10.0)', count: qualityTiers.masterpiece, color: '#f1c40f' },
+                            { label: '🌟 מעולה (8.0 - 8.9)', count: qualityTiers.excelente, color: '#22c55e' },
+                            { label: '👍 טוב (7.0 - 7.9)', count: qualityTiers.good, color: '#3b82f6' },
+                            { label: '🍿 בינוני / חלש (<7.0)', count: qualityTiers.average, color: '#64748b' }
+                        ].map(t => {
+                            const pct = Math.round((t.count / seen.length) * 100) || 0;
+                            return `
+                                <div class="decade-item">
+                                    <div class="decade-lbl"><span>${t.label}</span> <span><strong>${t.count}</strong> (${pct}%)</span></div>
+                                    <div class="decade-bar-track"><div class="decade-bar-fill" style="width: ${pct}%; background: ${t.color};"></div></div>
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
                 </div>
 
                 <!-- Decades Progress Card -->
@@ -1412,15 +1499,15 @@ class MovieRanker {
                     </div>
                 </div>
 
-                <!-- Genre ELO Leaderboard -->
+                <!-- Genre Rating Leaderboard -->
                 <div class="analytics-section-card full-width">
-                    <h3>🎭 הז'אנרים המנצחים בדירוג שלך (ממוצע ELO)</h3>
+                    <h3>🎭 הז'אנרים המנצחים בדירוג שלך (ציון ממוצע)</h3>
                     <div class="genre-elo-grid">
                         ${genreStats.map((g, idx) => `
                             <div class="genre-elo-card">
                                 <span class="g-rank">#${idx+1}</span>
                                 <span class="g-name">${g.name}</span>
-                                <span class="g-elo">${g.avgElo} ELO</span>
+                                <span class="g-elo">${g.avgRating} ⭐</span>
                                 <span class="g-count">${g.count} ${this.getTerm('plural')}</span>
                             </div>
                         `).join('')}
@@ -1459,6 +1546,26 @@ class MovieRanker {
                         `).join('') : '<p class="empty-note">עדיין אין סרטים מוגדרים כאובר-רייטד</p>'}
                     </div>
                 </div>
+
+                <!-- Low Battles Alert -->
+                ${lowBattles.length > 0 ? `
+                    <div class="analytics-section-card full-width">
+                        <h3>💤 מחכים להזדמנות בדו-קרב</h3>
+                        <p class="section-sub">סרטים שראית אבל עדיין כמעט ולא השתתפו בקרבות</p>
+                        <div class="gems-list">
+                            ${lowBattles.map(m => `
+                                <div class="mini-movie-row">
+                                    <img src="${m.poster_path ? 'https://image.tmdb.org/t/p/w92'+m.poster_path : ''}">
+                                    <div style="flex: 1;">
+                                        <strong>${m.hebrew_title || m.title}</strong>
+                                        <small>השתתף ב-${this.data.stats[m.id]?.total || 0} קרבות בלבד</small>
+                                    </div>
+                                    <button class="btn-secondary btn-sm" onclick="window.location.hash='battle';">שגר לדו-קרב ⚔️</button>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                ` : ''}
             </div>
         `;
     }
