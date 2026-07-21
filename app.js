@@ -718,24 +718,26 @@ class MovieRanker {
     getNormScore(id) {
         const elo = this.data.elo[id] || 1000;
         const stats = this.data.stats[id] || { wins: 0, total: 0 };
-        const winRate = stats.total > 0 ? (stats.wins / stats.total) : 0.5;
-
-        // Dynamic base mapping: Elo 1000 -> 5.0 midpoint
-        // Every 35 ELO points adds 1.0 to rating
-        let baseScore = 5.0 + ((elo - 1000) / 35);
-
-        // Win-rate & confidence bonus for dominant streaks
-        let streakBonus = 0;
-        if (stats.total >= 2) {
-            if (winRate >= 0.9) {
-                // Dominant win rate (90-100% win rate)
-                streakBonus = Math.min(stats.total * 0.15, 2.5);
-            } else if (winRate >= 0.75) {
-                streakBonus = Math.min(stats.total * 0.08, 1.2);
-            }
+        
+        if (stats.total === 0) return "6.0";
+        
+        const winRate = stats.wins / stats.total;
+        
+        // Confidence weight: requires volume of battles to reach high/low extremes
+        const confidence = stats.total / (stats.total + 6);
+        
+        // ELO difference from baseline 1000
+        const eloDiff = elo - 1000;
+        
+        // Base rating starting around 6.0 for average items
+        let score = 6.0 + (eloDiff / 90) + (confidence * (winRate - 0.5) * 3.0);
+        
+        // Damped log scaling above 9.0 so 10.0 is rare, prestigious and earned
+        if (score > 9.0) {
+            score = 9.0 + Math.log10(1 + (score - 9.0) * 0.7) * 1.2;
         }
 
-        let finalScore = (baseScore + streakBonus).toFixed(1);
+        let finalScore = score.toFixed(1);
         if (finalScore > 10.0) finalScore = "10.0";
         if (finalScore < 1.0) finalScore = "1.0";
         return finalScore;
