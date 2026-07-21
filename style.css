@@ -604,37 +604,59 @@ body {
     box-sizing: border-box;
 }
 
-.leaderboard th:nth-child(1),
-.leaderboard td:nth-child(1) {
+/* 5-Column Rank Table Layout */
+.leaderboard:not(.watchlist-table) th:nth-child(1),
+.leaderboard:not(.watchlist-table) td:nth-child(1) {
     width: 24px;
     text-align: center;
     padding: 10px 4px;
 }
 
-.leaderboard th:nth-child(2),
-.leaderboard td:nth-child(2) {
+.leaderboard:not(.watchlist-table) th:nth-child(2),
+.leaderboard:not(.watchlist-table) td:nth-child(2) {
     width: 46px;
     padding: 10px 4px;
 }
 
-.leaderboard th:nth-child(3),
-.leaderboard td:nth-child(3) {
+.leaderboard:not(.watchlist-table) th:nth-child(3),
+.leaderboard:not(.watchlist-table) td:nth-child(3) {
     padding: 10px 8px;
     word-break: break-word;
     overflow-wrap: break-word;
 }
 
-.leaderboard th:nth-child(4),
-.leaderboard td:nth-child(4) {
+.leaderboard:not(.watchlist-table) th:nth-child(4),
+.leaderboard:not(.watchlist-table) td:nth-child(4) {
     width: 52px;
     text-align: center;
     padding: 10px 4px;
 }
 
-.leaderboard th:nth-child(5),
-.leaderboard td:nth-child(5) {
+.leaderboard:not(.watchlist-table) th:nth-child(5),
+.leaderboard:not(.watchlist-table) td:nth-child(5) {
     width: 36px;
     text-align: center;
+    padding: 10px 4px;
+}
+
+/* 3-Column Watchlist Table Layout */
+.watchlist-table th.col-poster,
+.watchlist-table td.col-poster {
+    width: 50px;
+    padding: 10px 4px;
+}
+
+.watchlist-table th.col-name,
+.watchlist-table td.col-name {
+    padding: 10px 8px;
+    word-break: break-word;
+    overflow-wrap: break-word;
+}
+
+.watchlist-table th.col-action,
+.watchlist-table td.col-action {
+    width: 85px;
+    text-align: left;
     padding: 10px 4px;
 }
 

@@ -1804,13 +1804,20 @@ class MovieRanker {
         const tbody = document.getElementById('watchlist-body');
         if (!tbody) return;
         tbody.innerHTML = '';
-        this.data.all.filter(m => this.data.watchlist.includes(m.id)).forEach(m => {
+        const watchlist = this.data.all.filter(m => this.data.watchlist.includes(m.id));
+        
+        if (watchlist.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: var(--text-secondary); padding: 25px 10px;">אין עדיין פריטים ברשימת הצפייה</td></tr>';
+            return;
+        }
+
+        watchlist.forEach(m => {
             const url = m.poster_path ? `https://image.tmdb.org/t/p/w92${m.poster_path}` : 'https://via.placeholder.com/40x60';
             const tr = document.createElement('tr');
             tr.innerHTML = `
-                <td><img src="${url}" class="mini-poster"></td>
-                <td><strong>${m.hebrew_title}</strong><br><small>${m.title}</small></td>
-                <td>
+                <td class="col-poster"><img src="${url}" class="mini-poster"></td>
+                <td class="col-name"><strong>${m.hebrew_title || m.title}</strong><br><small style="color: #94a3b8;">${m.title}</small></td>
+                <td class="col-action">
                     <div class="list-actions">
                         <button class="list-btn btn-seen" onclick="window.markWatchlistSeen(${m.id})" title="ראיתי">
                             <i data-lucide="check"></i>
