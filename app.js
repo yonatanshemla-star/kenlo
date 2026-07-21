@@ -94,6 +94,8 @@ class MovieRanker {
         this.setupModeToggle();
         this.renderGenreSelectors();
         this.setupTournamentEvents();
+        this.setupMatchmakerEvents();
+        this.setupStatsSubNavEvents();
         this.renderCurrentView();
         
         if (this.tmdbKey) {
@@ -1275,6 +1277,25 @@ class MovieRanker {
     }
 
     // --- Stats & Watchlist ---
+    // --- Stats Sub Nav & Deep Analytics ---
+    setupStatsSubNavEvents() {
+        document.querySelectorAll('.stats-tab-btn').forEach(btn => {
+            btn.onclick = () => {
+                document.querySelectorAll('.stats-tab-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                
+                const tab = btn.dataset.statsTab;
+                document.querySelectorAll('.stats-tab-content').forEach(c => c.style.display = 'none');
+                
+                const target = document.getElementById(`stats-tab-${tab}`);
+                if (target) target.style.display = 'block';
+                
+                if (tab === 'analytics') this.renderDeepAnalytics();
+                if (tab === 'hall') this.renderHallOfFame();
+            };
+        });
+    }
+
     renderStats() {
         const tbody = document.getElementById('leaderboard-body');
         if (!tbody) return;
@@ -1300,6 +1321,372 @@ class MovieRanker {
             tbody.appendChild(tr);
         });
         if (window.lucide) window.lucide.createIcons();
+    }
+
+    renderDeepAnalytics() {
+        const container = document.getElementById('analytics-dashboard-container');
+        if (!container) return;
+        
+        const seen = this.data.seen;
+        if (seen.length === 0) {
+            container.innerHTML = '<div class="stack-placeholder">סמן סרטים שראית כדי לפתוח את מעבדת הניתוח העמוקה!</div>';
+            return;
+        }
+
+        // 1. Total Watch Time & General Stats
+        const totalMinutes = seen.reduce((acc, m) => acc + (m.runtime || 110), 0);
+        const totalHours = Math.round(totalMinutes / 60);
+        const totalDays = (totalHours / 24).toFixed(1);
+        const avgMinutes = Math.round(totalMinutes / seen.length);
+        const totalBattles = Object.values(this.data.stats).reduce((acc, s) => acc + (s.total || 0), 0);
+
+        // 2. Decades Distribution
+        const decades = { '70s': 0, '80s': 0, '90s': 0, '2000s': 0, '2010s': 0, '2020s': 0 };
+        seen.forEach(m => {
+            const yr = m.release_date ? parseInt(m.release_date.split('-')[0]) : 2020;
+            if (yr < 1980) decades['70s']++;
+            else if (yr < 1990) decades['80s']++;
+            else if (yr < 2000) decades['90s']++;
+            else if (yr < 2010) decades['2000s']++;
+            else if (yr < 2020) decades['2010s']++;
+            else decades['2020s']++;
+        });
+
+        // 3. Top Genres by ELO
+        const genreElos = {};
+        seen.forEach(m => {
+            if (m.genre_ids) {
+                m.genre_ids.forEach(gId => {
+                    if (!genreElos[gId]) genreElos[gId] = { sum: 0, count: 0 };
+                    genreElos[gId].sum += (this.data.elo[m.id] || 1000);
+                    genreElos[gId].count++;
+                });
+            }
+        });
+        const genreStats = Object.entries(genreElos)
+            .map(([gId, d]) => ({ name: GENRES[gId] || 'כללי', avgElo: Math.round(d.sum / d.count), count: d.count }))
+            .sort((a, b) => b.avgElo - a.avgElo)
+            .slice(0, 5);
+
+        // 4. Hidden Gems vs. Overrated
+        const sortedByElo = [...seen].sort((a, b) => (this.data.elo[b.id] || 1000) - (this.data.elo[a.id] || 1000));
+        const top30Percent = sortedByElo.slice(0, Math.ceil(seen.length * 0.35));
+        const bottom30Percent = sortedByElo.slice(Math.floor(seen.length * 0.65));
+
+        const hiddenGems = top30Percent.filter(m => (m.vote_average || 7) < 7.4).slice(0, 3);
+        const overrated = bottom30Percent.filter(m => (m.vote_average || 7) > 7.6).slice(0, 3);
+
+        container.innerHTML = `
+            <div class="analytics-grid">
+                <!-- Overview Stats Grid -->
+                <div class="stat-card-widget">
+                    <div class="widget-icon">⏱️</div>
+                    <div class="widget-val">${totalHours} שעות</div>
+                    <div class="widget-lbl">סה"כ זמן צפייה (${totalDays} ימים)</div>
+                </div>
+                <div class="stat-card-widget">
+                    <div class="widget-icon">🎬</div>
+                    <div class="widget-val">${avgMinutes} דק'</div>
+                    <div class="widget-lbl">אורך ${this.getTerm()} ממוצע</div>
+                </div>
+                <div class="stat-card-widget">
+                    <div class="widget-icon">⚔️</div>
+                    <div class="widget-val">${totalBattles}</div>
+                    <div class="widget-lbl">סה"כ קרבות בדירוג</div>
+                </div>
+
+                <!-- Decades Progress Card -->
+                <div class="analytics-section-card full-width">
+                    <h3>📆 התפלגות לפי עשורים</h3>
+                    <div class="decades-list">
+                        ${Object.entries(decades).map(([dec, count]) => {
+                            const pct = Math.round((count / seen.length) * 100) || 0;
+                            const labelMap = { '70s': 'קלאסיקות (<1980)', '80s': 'שנות ה-80', '90s': 'שנות ה-90', '2000s': 'שנות ה-2000', '2010s': 'שנות ה-2010', '2020s': 'שנות ה-2020+' };
+                            return `
+                                <div class="decade-item">
+                                    <div class="decade-lbl"><span>${labelMap[dec]}</span> <span>${count} (${pct}%)</span></div>
+                                    <div class="decade-bar-track"><div class="decade-bar-fill" style="width: ${pct}%;"></div></div>
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                </div>
+
+                <!-- Genre ELO Leaderboard -->
+                <div class="analytics-section-card full-width">
+                    <h3>🎭 הז'אנרים המנצחים בדירוג שלך (ממוצע ELO)</h3>
+                    <div class="genre-elo-grid">
+                        ${genreStats.map((g, idx) => `
+                            <div class="genre-elo-card">
+                                <span class="g-rank">#${idx+1}</span>
+                                <span class="g-name">${g.name}</span>
+                                <span class="g-elo">${g.avgElo} ELO</span>
+                                <span class="g-count">${g.count} ${this.getTerm('plural')}</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+
+                <!-- Hidden Gems vs Overrated -->
+                <div class="analytics-section-card">
+                    <h3>💎 פנינים נסתרות שלי</h3>
+                    <p class="section-sub">סרטים שדירגת בטופ, למרות הציון הבינוני בעולם</p>
+                    <div class="gems-list">
+                        ${hiddenGems.length > 0 ? hiddenGems.map(m => `
+                            <div class="mini-movie-row">
+                                <img src="${m.poster_path ? 'https://image.tmdb.org/t/p/w92'+m.poster_path : ''}">
+                                <div>
+                                    <strong>${m.hebrew_title || m.title}</strong>
+                                    <small>ציון TMDB: ${m.vote_average || '7.0'} ⭐ · שלך: ${this.getNormScore(m.id)}</small>
+                                </div>
+                            </div>
+                        `).join('') : '<p class="empty-note">עדיין אין פנינים נסתרות מזוהות</p>'}
+                    </div>
+                </div>
+
+                <div class="analytics-section-card">
+                    <h3>🤔 אובר-רייטד לטעמי</h3>
+                    <p class="section-sub">סרטים שכל העולם אוהב, אבל אצלך בתחתית</p>
+                    <div class="gems-list">
+                        ${overrated.length > 0 ? overrated.map(m => `
+                            <div class="mini-movie-row">
+                                <img src="${m.poster_path ? 'https://image.tmdb.org/t/p/w92'+m.poster_path : ''}">
+                                <div>
+                                    <strong>${m.hebrew_title || m.title}</strong>
+                                    <small>ציון TMDB: ${m.vote_average || '8.0'} ⭐ · שלך: ${this.getNormScore(m.id)}</small>
+                                </div>
+                            </div>
+                        `).join('') : '<p class="empty-note">עדיין אין סרטים מוגדרים כאובר-רייטד</p>'}
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    renderHallOfFame() {
+        const container = document.getElementById('hall-of-fame-container');
+        if (!container) return;
+        
+        const winnerId = this.data.tournament?.winnerId;
+        const champion = winnerId ? this.data.seen.find(m => m.id === winnerId) : null;
+        
+        container.innerHTML = `
+            <div class="hall-of-fame-dashboard">
+                <div class="hall-champion-banner">
+                    <div class="crown-hero">🏆</div>
+                    <h2>היכל אלופי הטורנירים</h2>
+                    <p>הסרטים והסדרות שהוכרזו כאלוף הבלתי מעורער!</p>
+                </div>
+                ${champion ? `
+                    <div class="current-champ-card">
+                        <img src="${champion.poster_path ? 'https://image.tmdb.org/t/p/w500'+champion.poster_path : ''}">
+                        <div class="champ-info">
+                            <span class="badge-gold">🥇 האלוף הנוכחי</span>
+                            <h3>${champion.hebrew_title || champion.title}</h3>
+                            <p>זכה בטורניר האחרון וגרף בונוס 100+ ELO!</p>
+                        </div>
+                    </div>
+                ` : `
+                    <div class="stack-placeholder">עדיין לא הוכתר אלוף טורניר. שחק בטורניר והכתר את המנצח!</div>
+                `}
+            </div>
+        `;
+    }
+
+    // --- Interactive Matchmaker Engine ---
+    setupMatchmakerEvents() {
+        const modal = document.getElementById('matchmaker-modal');
+        const openBtn = document.getElementById('open-matchmaker-btn');
+        const closeBtn = document.getElementById('close-matchmaker-btn');
+        const prevBtn = document.getElementById('mm-prev-btn');
+        const nextBtn = document.getElementById('mm-next-btn');
+        const findBtn = document.getElementById('mm-find-btn');
+        const restartBtn = document.getElementById('mm-restart-btn');
+
+        if (!modal || !openBtn) return;
+
+        openBtn.onclick = () => {
+            modal.style.display = 'flex';
+            this.currentMMStep = 1;
+            this.showMMStep(1);
+        };
+
+        closeBtn.onclick = () => { modal.style.display = 'none'; };
+        modal.onclick = (e) => { if (e.target === modal) modal.style.display = 'none'; };
+
+        // Option clicks logic
+        document.querySelectorAll('.mm-options-grid').forEach(grid => {
+            grid.querySelectorAll('.mm-opt-btn').forEach(btn => {
+                btn.onclick = () => {
+                    grid.querySelectorAll('.mm-opt-btn').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                };
+            });
+        });
+
+        // Navigation
+        prevBtn.onclick = () => {
+            if (this.currentMMStep > 1) {
+                this.currentMMStep--;
+                this.showMMStep(this.currentMMStep);
+            }
+        };
+
+        nextBtn.onclick = () => {
+            if (this.currentMMStep < 5) {
+                this.currentMMStep++;
+                this.showMMStep(this.currentMMStep);
+            }
+        };
+
+        findBtn.onclick = () => {
+            this.runMatchmakerAlgorithm();
+        };
+
+        if (restartBtn) {
+            restartBtn.onclick = () => {
+                document.getElementById('mm-results-view').style.display = 'none';
+                document.getElementById('mm-wizard-steps').style.display = 'block';
+                this.currentMMStep = 1;
+                this.showMMStep(1);
+            };
+        }
+    }
+
+    showMMStep(stepNum) {
+        document.querySelectorAll('.mm-step').forEach(s => s.style.display = 'none');
+        const targetStep = document.querySelector(`.mm-step[data-step="${stepNum}"]`);
+        if (targetStep) targetStep.style.display = 'block';
+
+        // Update progress dots
+        document.querySelectorAll('.mm-progress-dots .dot').forEach((dot, idx) => {
+            dot.classList.toggle('active', idx + 1 === stepNum);
+        });
+
+        // Buttons state
+        const prevBtn = document.getElementById('mm-prev-btn');
+        const nextBtn = document.getElementById('mm-next-btn');
+        const findBtn = document.getElementById('mm-find-btn');
+
+        if (prevBtn) prevBtn.style.display = stepNum > 1 ? 'inline-block' : 'none';
+        if (nextBtn) nextBtn.style.display = stepNum < 5 ? 'inline-block' : 'none';
+        if (findBtn) findBtn.style.display = stepNum === 5 ? 'inline-block' : 'none';
+    }
+
+    runMatchmakerAlgorithm() {
+        const genreVal = document.querySelector('#mm-genre-options .mm-opt-btn.active')?.dataset.val || 'all';
+        const vibeVal = document.querySelector('#mm-vibe-options .mm-opt-btn.active')?.dataset.val || 'any';
+        const durVal = document.querySelector('#mm-duration-options .mm-opt-btn.active')?.dataset.val || 'any';
+        const eraVal = document.querySelector('#mm-era-options .mm-opt-btn.active')?.dataset.val || 'any';
+        const popVal = document.querySelector('#mm-pop-options .mm-opt-btn.active')?.dataset.val || 'any';
+
+        // Combined Candidate Pool (Watchlist + Unseen Movies)
+        const watchlistItems = this.data.all.filter(m => this.data.watchlist.includes(m.id));
+        const unseenItems = this.data.all.filter(m => !this.data.seen.find(s => s.id === m.id));
+        
+        let pool = [...watchlistItems, ...unseenItems];
+        // Deduplicate pool
+        const uniqueMap = {};
+        pool.forEach(item => uniqueMap[item.id] = item);
+        pool = Object.values(uniqueMap);
+
+        if (pool.length === 0) {
+            this.showToast('אין מספיק תוכן בקטלוג להמלצה');
+            return;
+        }
+
+        // Apply Filters
+        const filtered = pool.filter(item => {
+            // Genre
+            if (genreVal !== 'all' && item.genre_ids && !item.genre_ids.includes(parseInt(genreVal))) return false;
+            
+            // Duration
+            const runtime = item.runtime || 105;
+            if (durVal === 'short' && runtime > 95) return false;
+            if (durVal === 'medium' && (runtime < 85 || runtime > 125)) return false;
+            if (durVal === 'long' && runtime < 115) return false;
+
+            // Era
+            const yr = item.release_date ? parseInt(item.release_date.split('-')[0]) : 2020;
+            if (eraVal === 'new' && yr < 2020) return false;
+            if (eraVal === 'classic' && (yr < 1985 || yr > 2015)) return false;
+
+            // Popularity
+            const votes = item.vote_count || 500;
+            if (popVal === 'hit' && votes < 800) return false;
+            if (popVal === 'gem' && votes > 1000) return false;
+
+            return true;
+        });
+
+        const finalCandidates = filtered.length >= 3 ? filtered : pool;
+
+        // Calculate Match Score %
+        const topUserGenres = [];
+        const topSeen = [...this.data.seen].sort((a,b) => (this.data.elo[b.id]||1000) - (this.data.elo[a.id]||1000)).slice(0, 5);
+        topSeen.forEach(m => { if (m.genre_ids) topUserGenres.push(...m.genre_ids); });
+
+        const scoredResults = finalCandidates.map(item => {
+            let score = (item.vote_average || 7.5) * 10; // Base score out of 100
+            
+            // Bonus for matching user's top genres
+            if (item.genre_ids && item.genre_ids.some(gId => topUserGenres.includes(gId))) {
+                score += 12;
+            }
+
+            // Bonus if item is in Watchlist
+            if (this.data.watchlist.includes(item.id)) {
+                score += 15;
+            }
+
+            // Small jitter for freshness
+            score += Math.random() * 5;
+
+            let matchPct = Math.min(Math.round(score), 99);
+            if (matchPct < 70) matchPct = 70 + Math.floor(Math.random() * 15);
+
+            return { item, matchPct };
+        }).sort((a, b) => b.matchPct - a.matchPct).slice(0, 4);
+
+        // Render Results View
+        document.getElementById('mm-wizard-steps').style.display = 'none';
+        const resView = document.getElementById('mm-results-view');
+        resView.style.display = 'block';
+
+        const listDiv = document.getElementById('mm-results-list');
+        listDiv.innerHTML = '';
+
+        scoredResults.forEach(({ item, matchPct }) => {
+            const card = document.createElement('div');
+            card.className = 'mm-result-card';
+            const imgUrl = item.poster_path ? `https://image.tmdb.org/t/p/w500${item.poster_path}` : 'https://via.placeholder.com/100x150';
+            const isWatchlist = this.data.watchlist.includes(item.id);
+
+            card.innerHTML = `
+                <img src="${imgUrl}" alt="${item.hebrew_title || item.title}">
+                <div class="mm-res-info">
+                    <div class="mm-res-header">
+                        <h4>${item.hebrew_title || item.title}</h4>
+                        <span class="match-score-badge">🔥 ${matchPct}% התאמה</span>
+                    </div>
+                    <div class="mm-res-meta">
+                        <span>${item.release_date ? item.release_date.split('-')[0] : ''}</span> · 
+                        <span>${item.vote_average ? item.vote_average + ' ⭐' : ''}</span>
+                    </div>
+                    <div class="mm-res-actions">
+                        <button class="btn-primary btn-sm" onclick="window.markWatchlistSeen(${item.id}); this.textContent='נצפה! ✅'">
+                            ראיתי כבר!
+                        </button>
+                        ${!isWatchlist ? `
+                            <button class="btn-secondary btn-sm" onclick="window.toggleWatchlist(${item.id}); this.textContent='שמור! 📌'">
+                                📌 שמרתי לצפייה
+                            </button>
+                        ` : '<span class="saved-tag">📌 ברשימת צפייה</span>'}
+                    </div>
+                </div>
+            `;
+            listDiv.appendChild(card);
+        });
     }
 
     renderWatchlist() {

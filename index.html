@@ -16,9 +16,12 @@
 </head>
 <body>
     <div class="app-container">
-        <!-- Top Header with Toggle -->
+        <!-- Top Header with Toggle & Matchmaker -->
         <header class="app-header">
             <div class="logo" dir="ltr">Cut<span>!</span></div>
+            <button class="btn-matchmaker-trigger" id="open-matchmaker-btn" title="מה לראות הערב?">
+                🍿 <span>מה לראות?</span>
+            </button>
             <div class="mode-toggle">
                 <input type="radio" name="content-type" id="mode-movie" value="movie" checked>
                 <label for="mode-movie">סרטים</label>
@@ -144,26 +147,49 @@
                 </div>
             </section>
 
-            <!-- Stats View -->
+            <!-- Stats View (Deep Analytics Lab) -->
             <section id="stats-view" class="view">
                 <div class="view-header">
                     <h1>הדירוג שלי</h1>
+                    <div class="stats-sub-nav">
+                        <button class="stats-tab-btn active" data-stats-tab="table">📋 טבלת דירוג</button>
+                        <button class="stats-tab-btn" data-stats-tab="analytics">📊 מעבדת ניתוח</button>
+                        <button class="stats-tab-btn" data-stats-tab="hall">🏆 היכל אלופים</button>
+                    </div>
                 </div>
-                <div class="leaderboard-container">
-                    <table class="leaderboard">
-                        <thead>
-                            <tr>
-                                <th>#</th>
-                                <th>פוסטר</th>
-                                <th>שם</th>
-                                <th>דירוג</th>
-                                <th></th>
-                            </tr>
-                        </thead>
-                        <tbody id="leaderboard-body">
-                            <!-- Rows will be added here -->
-                        </tbody>
-                    </table>
+
+                <!-- Tab 1: Leaderboard Table -->
+                <div id="stats-tab-table" class="stats-tab-content active">
+                    <div class="leaderboard-container">
+                        <table class="leaderboard">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>פוסטר</th>
+                                    <th>שם</th>
+                                    <th>דירוג</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody id="leaderboard-body">
+                                <!-- Rows -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Tab 2: Deep Analytics Lab -->
+                <div id="stats-tab-analytics" class="stats-tab-content" style="display: none;">
+                    <div id="analytics-dashboard-container">
+                        <!-- Rendered by JS -->
+                    </div>
+                </div>
+
+                <!-- Tab 3: Hall of Fame -->
+                <div id="stats-tab-hall" class="stats-tab-content" style="display: none;">
+                    <div id="hall-of-fame-container">
+                        <!-- Rendered by JS -->
+                    </div>
                 </div>
             </section>
 
@@ -250,6 +276,104 @@
                 </li>
             </ul>
         </nav>
+    </div>
+
+    <!-- Matchmaker Interactive Questionnaire Modal -->
+    <div id="matchmaker-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-card">
+            <button class="modal-close-btn" id="close-matchmaker-btn">&times;</button>
+            
+            <div id="mm-wizard-steps">
+                <div class="mm-header">
+                    <h2>🍿 מה לראות הערב?</h2>
+                    <p>ענה על 5 שאלות קצרות ונעזור לך לבחור את הבינג' המושלם!</p>
+                    <div class="mm-progress-dots">
+                        <span class="dot active" data-step="1"></span>
+                        <span class="dot" data-step="2"></span>
+                        <span class="dot" data-step="3"></span>
+                        <span class="dot" data-step="4"></span>
+                        <span class="dot" data-step="5"></span>
+                    </div>
+                </div>
+
+                <!-- Step 1: Genre -->
+                <div class="mm-step active" data-step="1">
+                    <h3>1. איזה ז'אנר בא לך הערב?</h3>
+                    <div class="mm-options-grid" id="mm-genre-options">
+                        <button class="mm-opt-btn active" data-val="all">✨ פתוח להכל!</button>
+                        <button class="mm-opt-btn" data-val="28">💥 אקשן</button>
+                        <button class="mm-opt-btn" data-val="35">😂 קומדיה</button>
+                        <button class="mm-opt-btn" data-val="18">🎭 דרמה</button>
+                        <button class="mm-opt-btn" data-val="878">🚀 מד"ב</button>
+                        <button class="mm-opt-btn" data-val="53">🔪 מתח</button>
+                        <button class="mm-opt-btn" data-val="27">👻 אימה</button>
+                    </div>
+                </div>
+
+                <!-- Step 2: Vibe/Mood -->
+                <div class="mm-step" data-step="2" style="display: none;">
+                    <h3>2. מה האווירה / המצב רוח?</h3>
+                    <div class="mm-options-grid" id="mm-vibe-options">
+                        <button class="mm-opt-btn active" data-val="any">🤷‍♂️ לא משנה</button>
+                        <button class="mm-opt-btn" data-val="light">🤪 קליל ומצחיק</button>
+                        <button class="mm-opt-btn" data-val="thrill">😱 מותח ומרתק</button>
+                        <button class="mm-opt-btn" data-val="deep">🧠 עמוק ומעורר מחשבה</button>
+                        <button class="mm-opt-btn" data-val="emotional">💔 מרגש ודרמטי</button>
+                        <button class="mm-opt-btn" data-val="action">⚡ אקשן וקצבי</button>
+                    </div>
+                </div>
+
+                <!-- Step 3: Duration -->
+                <div class="mm-step" data-step="3" style="display: none;">
+                    <h3>3. איזה אורך מתחשק לך?</h3>
+                    <div class="mm-options-grid" id="mm-duration-options">
+                        <button class="mm-opt-btn active" data-val="any">♾️ לא משנה</button>
+                        <button class="mm-opt-btn" data-val="short">⚡ קצר (עד 90 דקות)</button>
+                        <button class="mm-opt-btn" data-val="medium">🎬 סטנדרטי (90-120 דק')</button>
+                        <button class="mm-opt-btn" data-val="long">🍿 ארוך / עמוק (שעתיים+)</button>
+                    </div>
+                </div>
+
+                <!-- Step 4: Era -->
+                <div class="mm-step" data-step="4" style="display: none;">
+                    <h3>4. באיזו תקופה מדובר?</h3>
+                    <div class="mm-options-grid" id="mm-era-options">
+                        <button class="mm-opt-btn active" data-val="any">♾️ כל השנים</button>
+                        <button class="mm-opt-btn" data-val="new">🆕 חם מהתנור (2020+)</button>
+                        <button class="mm-opt-btn" data-val="classic">📼 ניינטיז וקלאסיקות (90s-2000s)</button>
+                    </div>
+                </div>
+
+                <!-- Step 5: Popularity -->
+                <div class="mm-step" data-step="5" style="display: none;">
+                    <h3>5. רמת פופולריות?</h3>
+                    <div class="mm-options-grid" id="mm-pop-options">
+                        <button class="mm-opt-btn active" data-val="any">♾️ הכל הולך</button>
+                        <button class="mm-opt-btn" data-val="hit">🔥 שובר קופות מוביל</button>
+                        <button class="mm-opt-btn" data-val="gem">💎 פנינה נסתרת איכותית</button>
+                    </div>
+                </div>
+
+                <!-- Nav Action Bar -->
+                <div class="mm-actions">
+                    <button class="btn-secondary" id="mm-prev-btn" style="display: none;">הקודם</button>
+                    <button class="btn-primary" id="mm-next-btn">הבא</button>
+                    <button class="btn-primary btn-sparkle" id="mm-find-btn" style="display: none;">מצא לי סרט! ✨</button>
+                </div>
+            </div>
+
+            <!-- Match Results View -->
+            <div id="mm-results-view" style="display: none;">
+                <div class="mm-results-header">
+                    <h2>🎯 ההמלצות המושלמות עבורך!</h2>
+                    <p id="mm-results-subtitle">שוקלל בהתאם לטעם האישי שלך בדירוג</p>
+                </div>
+                <div class="mm-results-list" id="mm-results-list">
+                    <!-- Cards rendered by JS -->
+                </div>
+                <button class="btn-secondary btn-block" id="mm-restart-btn" style="margin-top: 15px;">חפש שוב / שוב שאלון 🔄</button>
+            </div>
+        </div>
     </div>
 
     <!-- Feedback Toasts -->
