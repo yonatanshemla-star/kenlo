@@ -109,7 +109,7 @@ class MovieRanker {
         }
     }
 
-    async fetchContentMixed(batchSize = 5) {
+    async fetchContentMixed(batchSize = 3) {
         if (!this.tmdbKey || this.isFetching) return;
         this.isFetching = true;
         const fetchType = this.contentType; // Lock type for this async run
@@ -123,17 +123,18 @@ class MovieRanker {
                 for (let i = 0; i < batchSize; i++) {
                     const targetData = fetchType === 'movie' ? this.movieData : this.tvData;
                     const pages = targetData.pages;
-                    pages[endpoint]++;
-                    const page = pages[endpoint];
+                    pages[endpoint] = (pages[endpoint] || 0) + 1;
+                    let page = pages[endpoint];
+                    if (page > 15) page = Math.floor(Math.random() * 10) + 1; // Stay on top pages!
                     
                     let extraParams = '';
                     let usePage = page;
                     
                     if (endpoint.includes('discover')) {
-                        extraParams = '&sort_by=vote_count.desc&vote_count.gte=100';
-                        usePage = Math.floor(Math.random() * 200) + 1;
+                        extraParams = '&sort_by=popularity.desc&vote_count.gte=300';
+                        usePage = Math.floor(Math.random() * 10) + 1;
                     } else if (endpoint === 'tv/israeli') {
-                        const ilPage = Math.floor(Math.random() * 5) + 1;
+                        const ilPage = Math.floor(Math.random() * 3) + 1;
                         const urlIL = `https://api.themoviedb.org/3/discover/tv?api_key=${this.tmdbKey}&language=he-IL&with_origin_country=IL&page=${ilPage}&sort_by=popularity.desc`;
                         await this.fetchAndAdd(urlIL, fetchType);
                         continue;
@@ -145,7 +146,12 @@ class MovieRanker {
                 }
             }
             
-            this.shuffleArray(this.data.all);
+            // Sort pool primarily by popularity and quality so mainstream hits appear first
+            this.data.all.sort((a, b) => {
+                const scoreA = (a.popularity || 10) * Math.log10(Math.max(a.vote_count || 10, 10));
+                const scoreB = (b.popularity || 10) * Math.log10(Math.max(b.vote_count || 10, 10));
+                return scoreB - scoreA;
+            });
             
             this.renderCurrentView();
         } catch (e) { console.error("Fetch failed:", e); } finally { this.isFetching = false; }
@@ -158,15 +164,24 @@ class MovieRanker {
             data.results.forEach(item => {
                 if (item.genre_ids && item.genre_ids.includes(16)) return;
                 
+                const voteCount = item.vote_count || 0;
+                const pop = item.popularity || 0;
+                const releaseYear = item.release_date ? parseInt(item.release_date.split('-')[0]) : 
+                                    (item.first_air_date ? parseInt(item.first_air_date.split('-')[0]) : 2020);
+                
+                // Filter out low vote & low popularity obscure films
+                if (voteCount < 200 && pop < 8.0) return;
+                
+                // Filter out obscure old movies (< 1975 unless high vote count)
+                if (releaseYear < 1975 && voteCount < 1200) return;
+                
                 const isEnglishOrHebrew = item.original_language === 'en' || item.original_language === 'he';
                 const isIsraeli = targetType === 'tv' && item.origin_country && item.origin_country.includes('IL');
-                const isGlobalHit = item.vote_count >= 1000 && item.vote_average >= 7.5;
+                const isGlobalHit = voteCount >= 500 && item.vote_average >= 7.0;
                 const isWeirdAsian = ['hi', 'ja', 'ko', 'zh', 'ta', 'te', 'ml', 'th', 'tr'].includes(item.original_language);
                 
-                // Block explicit Bollywood/Anime unless immense global hit
                 if (isWeirdAsian && !isGlobalHit) return;
-                // Additionally block Turkish Soap Operas if not global hits
-                if (item.original_language === 'tr' && targetType === 'tv' && item.vote_count < 200) return;
+                if (item.original_language === 'tr' && targetType === 'tv' && voteCount < 200) return;
                 
                 if (isEnglishOrHebrew || isIsraeli || isGlobalHit) {
                     if (item.poster_path && (item.title || item.name)) {
@@ -178,7 +193,8 @@ class MovieRanker {
                             genre_ids: item.genre_ids,
                             release_date: item.release_date || item.first_air_date,
                             vote_average: item.vote_average,
-                            vote_count: item.vote_count
+                            vote_count: voteCount,
+                            popularity: pop
                         }, targetType);
                     }
                 }
@@ -323,30 +339,7 @@ class MovieRanker {
 
     renderGenreSelectors() {
         const swipeContainer = document.getElementById('swipe-genre-filter');
-        swipeContainer.innerHTML = '<button class="genre-chip active" data-genre="all">הכל</button>';
-        
-        Object.entries(GENRES).forEach(([id, name]) => {
-            const chip = document.createElement('button');
-            chip.className = 'genre-chip';
-            chip.textContent = name;
-            chip.dataset.genre = id;
-            chip.onclick = () => {
-                document.querySelectorAll('.genre-chip').forEach(c => c.classList.remove('active'));
-                chip.classList.add('active');
-                this.selectedSwipeGenre = id;
-                this.renderSwipe();
-            };
-            swipeContainer.appendChild(chip);
-        });
-
-        // Battle select listener removed
-        const allChip = swipeContainer.querySelector('[data-genre="all"]');
-        allChip.onclick = () => {
-            document.querySelectorAll('.genre-chip').forEach(c => c.classList.remove('active'));
-            allChip.classList.add('active');
-            this.selectedSwipeGenre = 'all';
-            this.renderSwipe();
-        };
+        if (swipeContainer) swipeContainer.style.display = 'none';
     }
 
     renderCurrentView() {
@@ -741,25 +734,24 @@ class MovieRanker {
         document.getElementById('mode-dual').onclick = () => this.switchBattleMode('dual');
         document.getElementById('mode-tournament').onclick = () => this.switchBattleMode('tournament');
 
-        // Tournament Dashboard Actions
-        document.getElementById('start-t-btn').onclick = () => {
-            const poolSize = this.data.seen.length;
-            if (poolSize < 8) {
-                alert('צריך לפחות 8 סרטים שראית כדי להתחיל טורניר!');
-                return;
-            }
-            
-            if (this.data.tournament && !confirm('יש טורניר פעיל. להתחיל חדש ולמחוק את הקיים?')) return;
-            
-            let size = 32;
-            if (poolSize >= 128) size = 128;
-            else if (poolSize >= 64) size = 64;
-            else if (poolSize >= 32) size = 32;
-            else if (poolSize >= 16) size = 16;
-            else size = 8;
-
-            this.initTournament(size);
-        };
+        // Tournament Size Grid Selection
+        document.querySelectorAll('.t-size-card').forEach(card => {
+            card.onclick = () => {
+                const sizeVal = card.dataset.size;
+                const poolSize = this.data.seen.length;
+                if (poolSize < 8) {
+                    alert('צריך לפחות 8 סרטים שראית כדי להתחיל טורניר!');
+                    return;
+                }
+                
+                if (this.data.tournament && !confirm('יש טורניר פעיל. להתחיל חדש ולמחוק את הקיים?')) return;
+                
+                let targetSize = sizeVal === 'all' ? poolSize : parseInt(sizeVal);
+                if (targetSize > poolSize) targetSize = poolSize;
+                
+                this.initTournament(targetSize);
+            };
+        });
 
         // Persistent Nav
         document.querySelectorAll('.t-nav-btn').forEach(btn => {
@@ -824,28 +816,30 @@ class MovieRanker {
         const sortedPool = [...this.data.seen].sort((a,b) => (this.data.elo[b.id]||1000) - (this.data.elo[a.id]||1000));
         const participants = sortedPool.slice(0, size);
         
-        if (size < 16) {
-            // Pure Knockout for small pools
-            const rounds = this.createEmptyBracket(size);
+        if (size < 12) {
+            // Pure Knockout for small pools (< 12 items)
+            const bracketSize = Math.pow(2, Math.floor(Math.log2(size)));
+            const finalParticipants = participants.slice(0, bracketSize);
+            const rounds = this.createEmptyBracket(bracketSize);
             
             // Seed first round
-            this.shuffleArray(participants);
+            this.shuffleArray(finalParticipants);
             rounds[0].matches.forEach((m, idx) => {
-                m.a = participants[idx*2].id;
-                m.b = participants[idx*2+1].id;
+                m.a = finalParticipants[idx*2].id;
+                m.b = finalParticipants[idx*2+1].id;
             });
 
             this.data.tournament = {
                 status: 'bracket',
-                participants: participants,
+                participants: finalParticipants,
                 groups: [],
                 bracket: rounds,
                 playedCount: 0,
                 totalMatches: rounds.reduce((acc, r) => acc + r.matches.length, 0)
             };
         } else {
-            // Groups of 8 (as requested "relatively large groups")
-            const groupsCount = size / 8; 
+            // World Cup / Champions League Format: Groups of 4! (6 matches per group)
+            const groupsCount = Math.floor(size / 4); 
             const groups = [];
             for (let i = 0; i < groupsCount; i++) {
                 groups.push({
@@ -856,29 +850,33 @@ class MovieRanker {
                 });
             }
 
-            // Distribute participants into pots
-            const itemsPerGroup = 8;
+            // Distribute participants into 4 Pots (Seed-based)
+            const itemsPerGroup = 4;
             for (let potIdx = 0; potIdx < itemsPerGroup; potIdx++) {
                 const pot = participants.slice(potIdx * groupsCount, (potIdx + 1) * groupsCount);
                 this.shuffleArray(pot);
                 pot.forEach((p, gIdx) => {
-                    groups[gIdx].members.push({
-                        id: p.id,
-                        name: p.hebrew_title || p.title,
-                        poster: p.poster_path,
-                        points: 0,
-                        played: 0,
-                        wins: 0,
-                        draws: 0,
-                        losses: 0
-                    });
+                    if (groups[gIdx]) {
+                        groups[gIdx].members.push({
+                            id: p.id,
+                            name: p.hebrew_title || p.title,
+                            poster: p.poster_path,
+                            points: 0,
+                            played: 0,
+                            wins: 0,
+                            draws: 0,
+                            losses: 0
+                        });
+                    }
                 });
             }
 
-            // Generate matches for each group (Round Robin)
+            // Generate matches for each group (Round Robin: 6 matches per group of 4)
+            // (0,1), (2,3), (0,2), (1,3), (0,3), (1,2)
+            const pairOrder = [ [0,1], [2,3], [0,2], [1,3], [0,3], [1,2] ];
             groups.forEach(group => {
-                for (let i = 0; i < group.members.length; i++) {
-                    for (let j = i + 1; j < group.members.length; j++) {
+                pairOrder.forEach(([i, j]) => {
+                    if (group.members[i] && group.members[j]) {
                         group.matches.push({
                             id: `${group.name}-${i}-${j}`,
                             a: group.members[i].id,
@@ -886,23 +884,34 @@ class MovieRanker {
                             winner: null
                         });
                     }
-                }
-                this.shuffleArray(group.matches); 
+                });
             });
+
+            // Interleave matches across groups by round so no team plays back-to-back!
+            const schedule = [];
+            for (let matchIdx = 0; matchIdx < 6; matchIdx++) {
+                for (let gIdx = 0; gIdx < groupsCount; gIdx++) {
+                    if (groups[gIdx].matches[matchIdx]) {
+                        schedule.push({ groupIdx: gIdx, match: groups[gIdx].matches[matchIdx] });
+                    }
+                }
+            }
 
             this.data.tournament = {
                 status: 'groups',
                 participants: participants,
                 groups: groups,
+                schedule: schedule,
+                scheduleIndex: 0,
                 bracket: null,
                 playedCount: 0,
-                totalMatches: groups.reduce((acc, g) => acc + g.matches.length, 0)
+                totalMatches: schedule.length
             };
         }
 
         this.saveToLocalStorage();
         this.renderTournament();
-        this.showToast(`טורניר ${size} ${this.getTerm('plural')} יצא לדרך!`);
+        this.showToast(`טורניר ${participants.length} ${this.getTerm('plural')} יצא לדרך!`);
     }
 
     createEmptyBracket(size) {
@@ -929,6 +938,9 @@ class MovieRanker {
 
     renderTournament() {
         const tNav = document.getElementById('t-nav');
+        const descAll = document.getElementById('t-all-count-desc');
+        if (descAll) descAll.textContent = `טורניר אליפות מלא על כל ה-${this.data.seen.length} שראית`;
+
         if (!this.data.tournament) {
             this.showTournamentView('dashboard');
             document.getElementById('t-current-stage').textContent = 'ממתין';
@@ -944,21 +956,31 @@ class MovieRanker {
         if (t.status === 'groups') {
             document.getElementById('t-current-stage').textContent = 'בתים';
             
-            let nextMatch = null;
+            let nextMatchObj = null;
             let groupIdx = -1;
-            for (let i = 0; i < t.groups.length; i++) {
-                const match = t.groups[i].matches.find(m => m.winner === null);
-                if (match) {
-                    nextMatch = match;
-                    groupIdx = i;
-                    break;
+
+            if (t.schedule && t.scheduleIndex < t.schedule.length) {
+                const item = t.schedule.find(s => s.match.winner === null);
+                if (item) {
+                    nextMatchObj = item.match;
+                    groupIdx = item.groupIdx;
+                }
+            } else {
+                // Fallback scan
+                for (let i = 0; i < t.groups.length; i++) {
+                    const match = t.groups[i].matches.find(m => m.winner === null);
+                    if (match) {
+                        nextMatchObj = match;
+                        groupIdx = i;
+                        break;
+                    }
                 }
             }
 
-            if (nextMatch) {
+            if (nextMatchObj) {
                 const group = t.groups[groupIdx];
                 document.getElementById('t-match-label').textContent = `שלב הבתים - בית ${group.name}`;
-                this.renderTournamentMatch(nextMatch, 'groups', groupIdx);
+                this.renderTournamentMatch(nextMatchObj, 'groups', groupIdx);
             } else {
                 this.showToast('שלב הבתים הסתיים! עוברים לנוקאאוט...');
                 this.generateKnockoutStage();
@@ -984,7 +1006,7 @@ class MovieRanker {
             } else {
                 const lastRound = t.bracket[t.bracket.length - 1];
                 const finalMatch = lastRound.matches[0];
-                if (finalMatch.winner) {
+                if (finalMatch && finalMatch.winner) {
                     this.renderTournamentWinner(finalMatch.winner);
                 } else {
                     this.showTournamentView('bracket');
@@ -1009,17 +1031,25 @@ class MovieRanker {
 
         arena.innerHTML = `<div class="battle-card" id="t-movie-a"></div><div class="vs">נגד</div><div class="battle-card" id="t-movie-b"></div>`;
         
-        const renderCard = (id, movie) => {
+        const renderCard = (id, movie, otherId) => {
             const c = document.getElementById(id);
             const url = movie.poster_path ? `https://image.tmdb.org/t/p/w500${movie.poster_path}` : 'https://via.placeholder.com/500x750';
             c.innerHTML = `<img src="${url}"> <div class="info"><h3>${movie.hebrew_title || movie.title}</h3><small>${movie.title}</small></div>`;
+            
             c.onclick = () => {
-                this.handleTournamentWinner(movie.id, match, stage, stageIdx);
+                // Interactive match selection feedback animation
+                c.classList.add('t-match-winner-glow');
+                const other = document.getElementById(otherId);
+                if (other) other.classList.add('t-match-loser-fade');
+
+                setTimeout(() => {
+                    this.handleTournamentWinner(movie.id, match, stage, stageIdx);
+                }, 350);
             };
         };
 
-        renderCard('t-movie-a', movieA);
-        renderCard('t-movie-b', movieB);
+        renderCard('t-movie-a', movieA, 't-movie-b');
+        renderCard('t-movie-b', movieB, 't-movie-a');
     }
 
     handleTournamentWinner(winnerId, match, stage, stageIdx) {
@@ -1060,7 +1090,7 @@ class MovieRanker {
                 t.status = 'finished';
                 t.winnerId = winnerId;
                 
-                // 2. Winner's Grand Champion Bonus (+100 ELO)
+                // Winner's Grand Champion Bonus (+100 ELO)
                 if (!this.data.elo[winnerId]) this.data.elo[winnerId] = 1000;
                 this.data.elo[winnerId] += 100;
                 this.showToast('🏆 בונוס אלוף הוענק!');
@@ -1085,10 +1115,9 @@ class MovieRanker {
             let rowsHtml = `<div class="group-row group-header"><span class="m-name">סרט</span><span>מש'</span><span>נק'</span><span>ELO</span></div>`;
             g.members.forEach((m, idx) => {
                 let winClass = '';
-                if (isFinished) {
-                    if (idx === 0) winClass = 'winner';
-                    else if (idx === 1) winClass = 'runner-up';
-                }
+                if (idx === 0) winClass = isFinished ? 'winner' : 'leading';
+                else if (idx === 1) winClass = isFinished ? 'runner-up' : 'qualifying';
+                
                 rowsHtml += `
                     <div class="group-row ${winClass}">
                         <span class="m-name">${m.name}</span>
@@ -1107,20 +1136,25 @@ class MovieRanker {
         const t = this.data.tournament;
         const winners = [];
         t.groups.forEach(g => {
-            winners.push(g.members[0].id); // 1st place
-            winners.push(g.members[1].id); // 2nd place
+            if (g.members[0]) winners.push(g.members[0].id); // 1st place
+            if (g.members[1]) winners.push(g.members[1].id); // 2nd place
         });
 
-        const rounds = this.createEmptyBracket(winners.length);
+        // Ensure power of 2 for bracket size (8, 16, 32)
+        let bracketSize = Math.pow(2, Math.floor(Math.log2(winners.length)));
+        if (bracketSize < 2) bracketSize = 2;
+        const bracketWinners = winners.slice(0, bracketSize);
 
-        // Seed first round: 1st place vs 2nd place from different groups
-        const groupFirsts = t.groups.map(g => g.members[0].id);
-        const groupSeconds = t.groups.map(g => g.members[1].id);
+        const rounds = this.createEmptyBracket(bracketWinners.length);
+
+        // Seed first round: 1st place vs 2nd place
+        const groupFirsts = t.groups.map(g => g.members[0] ? g.members[0].id : null).filter(Boolean);
+        const groupSeconds = t.groups.map(g => g.members[1] ? g.members[1].id : null).filter(Boolean);
         this.shuffleArray(groupSeconds);
 
         rounds[0].matches.forEach((m, idx) => {
-            m.a = groupFirsts[idx];
-            m.b = groupSeconds[idx];
+            m.a = groupFirsts[idx] || bracketWinners[idx*2] || null;
+            m.b = groupSeconds[idx] || bracketWinners[idx*2+1] || null;
         });
 
         t.bracket = rounds;
@@ -1135,31 +1169,50 @@ class MovieRanker {
         const view = document.getElementById('bracket-view');
         view.innerHTML = '';
         const t = this.data.tournament;
-        if (!t || !t.bracket) return;
+        if (!t || !t.bracket) {
+            view.innerHTML = '<div class="stack-placeholder">עץ הטורניר ייחשף עם סיום שלב הבתים!</div>';
+            return;
+        }
 
-        t.bracket.forEach(round => {
+        const mapTitle = document.createElement('div');
+        mapTitle.className = 'bracket-map-header';
+        mapTitle.innerHTML = `<h3>🗺️ מפת עץ הטורניר (מסלול האליפות)</h3>`;
+        view.appendChild(mapTitle);
+
+        const treeGrid = document.createElement('div');
+        treeGrid.className = 'bracket-tree-map';
+
+        t.bracket.forEach((round, rIdx) => {
             const container = document.createElement('div');
-            container.className = 'round-container';
-            container.innerHTML = `<div class="round-name">${round.name}</div>`;
-            round.matches.forEach(m => {
+            container.className = `round-column round-stage-${rIdx}`;
+            container.innerHTML = `<div class="round-header-badge">${round.name}</div>`;
+            
+            round.matches.forEach((m, mIdx) => {
                 const teamA = this.data.seen.find(mov => mov.id === m.a);
                 const teamB = this.data.seen.find(mov => mov.id === m.b);
+                const isFinal = (rIdx === t.bracket.length - 1);
+                
                 const box = document.createElement('div');
-                box.className = 'match-box';
+                box.className = `match-card-node ${isFinal ? 'final-match-node' : ''}`;
                 box.innerHTML = `
-                    <div class="match-team ${m.winner && m.winner === m.a ? 'winner' : ''}">
-                        <img src="${teamA ? 'https://image.tmdb.org/t/p/w92'+teamA.poster_path : ''}">
-                        <span>${teamA ? (teamA.hebrew_title || teamA.title) : '???'}</span>
+                    <div class="node-team ${m.winner && m.winner === m.a ? 'is-winner' : ''}">
+                        <img src="${teamA ? 'https://image.tmdb.org/t/p/w92'+teamA.poster_path : 'https://via.placeholder.com/30x45'}">
+                        <span class="team-title">${teamA ? (teamA.hebrew_title || teamA.title) : '???'}</span>
+                        ${m.winner && m.winner === m.a ? '<span class="crown-tag">👑</span>' : ''}
                     </div>
-                    <div class="match-team ${m.winner && m.winner === m.b ? 'winner' : ''}">
-                        <img src="${teamB ? 'https://image.tmdb.org/t/p/w92'+teamB.poster_path : ''}">
-                        <span>${teamB ? (teamB.hebrew_title || teamB.title) : '???'}</span>
+                    <div class="node-vs">VS</div>
+                    <div class="node-team ${m.winner && m.winner === m.b ? 'is-winner' : ''}">
+                        <img src="${teamB ? 'https://image.tmdb.org/t/p/w92'+teamB.poster_path : 'https://via.placeholder.com/30x45'}">
+                        <span class="team-title">${teamB ? (teamB.hebrew_title || teamB.title) : '???'}</span>
+                        ${m.winner && m.winner === m.b ? '<span class="crown-tag">👑</span>' : ''}
                     </div>
                 `;
                 container.appendChild(box);
             });
-            view.appendChild(container);
+            treeGrid.appendChild(container);
         });
+
+        view.appendChild(treeGrid);
     }
 
     renderTournamentWinner(id) {
@@ -1167,29 +1220,58 @@ class MovieRanker {
         this.showTournamentView('dashboard');
         const dash = document.getElementById('tournament-dashboard');
         
+        // Find runner-up (2nd place in final match)
+        let runnerUpMovie = null;
+        if (this.data.tournament && this.data.tournament.bracket) {
+            const finalRound = this.data.tournament.bracket[this.data.tournament.bracket.length - 1];
+            if (finalRound && finalRound.matches[0]) {
+                const fm = finalRound.matches[0];
+                const runnerId = (fm.winner === fm.a) ? fm.b : fm.a;
+                runnerUpMovie = this.data.seen.find(m => m.id === runnerId);
+            }
+        }
+
         const winnerEl = document.createElement('div');
         winnerEl.className = 'winner-announcement';
         winnerEl.style.marginTop = '20px';
         winnerEl.style.textAlign = 'center';
-        winnerEl.style.padding = '20px';
-        winnerEl.style.background = 'rgba(34, 197, 94, 0.1)';
-        winnerEl.style.borderRadius = '20px';
-        winnerEl.style.border = '2px solid #22c55e';
+        winnerEl.style.padding = '25px 20px';
+        winnerEl.style.background = 'linear-gradient(135deg, rgba(241, 196, 15, 0.2), rgba(15, 23, 42, 0.8))';
+        winnerEl.style.borderRadius = '24px';
+        winnerEl.style.border = '2px solid #f1c40f';
+        winnerEl.style.boxShadow = '0 10px 30px rgba(241, 196, 15, 0.3)';
         
         winnerEl.innerHTML = `
-            <div style="font-size: 2rem; margin-bottom: 10px;">🏆 המנצח!</div>
-            <img src="https://image.tmdb.org/t/p/w500${movie.poster_path}" style="width: 150px; border-radius: 10px; margin-bottom: 15px;">
-            <h2>${movie.hebrew_title || movie.title}</h2>
-            <p>לוחם אמיץ שגבר על כולם!</p>
-            <button class="btn-primary" style="margin-top: 15px;" onclick="location.reload()">טורניר חדש</button>
+            <div style="font-size: 2.2rem; margin-bottom: 5px;">🏆 אלוף הטורניר! 🏆</div>
+            <p style="color: #f1c40f; font-weight: 700; margin-bottom: 15px;">הגביר על כולם והגיע לראש הפיסגה!</p>
+            <img src="https://image.tmdb.org/t/p/w500${movie ? movie.poster_path : ''}" style="width: 160px; border-radius: 14px; margin-bottom: 15px; box-shadow: 0 8px 25px rgba(0,0,0,0.5);">
+            <h2 style="font-size: 1.6rem; color: #fff; margin-bottom: 15px;">${movie ? (movie.hebrew_title || movie.title) : 'מנצח'}</h2>
+            
+            ${runnerUpMovie ? `
+                <div class="podium-runner-up" style="margin-top: 15px; padding: 10px; background: rgba(255,255,255,0.05); border-radius: 12px; display: inline-flex; align-items: center; gap: 10px;">
+                    <span style="font-size: 1.2rem;">🥈 סגן אלוף:</span>
+                    <strong>${runnerUpMovie.hebrew_title || runnerUpMovie.title}</strong>
+                </div>
+            ` : ''}
+
+            <div style="margin-top: 20px;">
+                <button class="btn-primary btn-block" id="new-t-after-win-btn">התחל טורניר חדש 🚀</button>
+            </div>
         `;
         
-        // Remove existing winner announcement if any
         const existing = dash.querySelector('.winner-announcement');
         if (existing) existing.remove();
         
         dash.appendChild(winnerEl);
-        document.getElementById('start-t-btn').style.display = 'none';
+
+        const newBtn = document.getElementById('new-t-after-win-btn');
+        if (newBtn) {
+            newBtn.onclick = () => {
+                this.data.tournament = null;
+                this.saveToLocalStorage();
+                this.renderTournament();
+            };
+        }
     }
 
     // --- Stats & Watchlist ---

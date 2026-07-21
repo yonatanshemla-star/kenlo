@@ -1188,3 +1188,197 @@ input[type="password"], input[type="text"] {
     background: rgba(255, 255, 255, 0.05);
     font-weight: 600;
 }
+
+.group-row.leading {
+    background: rgba(34, 197, 94, 0.1);
+    color: #4ade80;
+    font-weight: 600;
+}
+
+.group-row.qualifying {
+    background: rgba(59, 130, 246, 0.1);
+    color: #60a5fa;
+}
+
+/* Tournament Setup Grid */
+.t-setup-title {
+    text-align: center;
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 15px;
+}
+
+.t-size-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+    margin-bottom: 15px;
+}
+
+.t-size-card {
+    background: rgba(30, 41, 59, 0.6);
+    border: 1px solid var(--glass-border);
+    border-radius: 16px;
+    padding: 15px 10px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.25s ease;
+}
+
+.t-size-card:hover {
+    background: rgba(241, 196, 15, 0.15);
+    border-color: #f1c40f;
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(241, 196, 15, 0.2);
+}
+
+.t-size-card .t-icon {
+    font-size: 1.8rem;
+    margin-bottom: 6px;
+}
+
+.t-size-card .t-name {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #fff;
+    margin-bottom: 4px;
+}
+
+.t-size-card .t-desc {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+}
+
+.t-size-card.t-size-all {
+    grid-column: span 2;
+    background: linear-gradient(135deg, rgba(241, 196, 15, 0.2), rgba(30, 41, 59, 0.8));
+    border: 1.5px solid #f1c40f;
+}
+
+/* Match Click Selection Feedback Animation */
+.t-match-winner-glow {
+    border: 3px solid #22c55e !important;
+    box-shadow: 0 0 25px rgba(34, 197, 94, 0.6) !important;
+    transform: scale(1.03) !important;
+    transition: all 0.15s ease-in-out !important;
+}
+
+.t-match-loser-fade {
+    opacity: 0.3 !important;
+    transform: scale(0.95) !important;
+    transition: all 0.15s ease-in-out !important;
+}
+
+/* Visual Bracket Tree Map */
+.bracket-map-header h3 {
+    text-align: center;
+    font-size: 1rem;
+    font-weight: 700;
+    color: #f1c40f;
+    margin-bottom: 15px;
+}
+
+.bracket-tree-map {
+    display: flex;
+    gap: 20px;
+    overflow-x: auto;
+    padding: 10px 5px 20px 5px;
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+}
+
+.bracket-tree-map::-webkit-scrollbar {
+    height: 6px;
+}
+.bracket-tree-map::-webkit-scrollbar-thumb {
+    background: rgba(255,255,255,0.2);
+    border-radius: 10px;
+}
+
+.round-column {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    min-width: 170px;
+    justify-content: space-around;
+}
+
+.round-header-badge {
+    text-align: center;
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--accent);
+    padding: 6px 10px;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    border: 1px solid var(--glass-border);
+    margin-bottom: 5px;
+}
+
+.match-card-node {
+    background: rgba(15, 23, 42, 0.85);
+    border: 1px solid var(--glass-border);
+    border-radius: 12px;
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    position: relative;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.match-card-node.final-match-node {
+    border: 2px solid #f1c40f;
+    box-shadow: 0 0 15px rgba(241, 196, 15, 0.3);
+}
+
+.node-team {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(255, 255, 255, 0.04);
+    padding: 5px 8px;
+    border-radius: 8px;
+    font-size: 0.75rem;
+}
+
+.node-team img {
+    width: 24px;
+    height: 36px;
+    object-fit: cover;
+    border-radius: 4px;
+}
+
+.node-team .team-title {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100px;
+    color: #cbd5e1;
+}
+
+.node-team.is-winner {
+    background: rgba(34, 197, 94, 0.2);
+    border: 1px solid #22c55e;
+}
+
+.node-team.is-winner .team-title {
+    color: #fff;
+    font-weight: 700;
+}
+
+.crown-tag {
+    font-size: 0.85rem;
+    margin-left: auto;
+}
+
+.node-vs {
+    align-self: center;
+    font-size: 0.65rem;
+    font-weight: 700;
+    color: #64748b;
+}

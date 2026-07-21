@@ -42,10 +42,7 @@
                         </div>
                     </div>
                 </div>
-                <div class="genre-selector" id="swipe-genre-filter">
-                    <button class="genre-chip active" data-genre="all">הכל</button>
-                    <!-- Genre chips will be injected here -->
-                </div>
+                <!-- Genre selector removed per user preference -->
                 <div class="card-stack" id="card-stack">
                     <div class="stack-placeholder">נגמרו הסרטים! טוען עוד...</div>
                 </div>
@@ -87,8 +84,28 @@
                     </div>
 
                     <div id="tournament-dashboard" class="tournament-subview">
-                        <div class="tournament-actions">
-                            <button class="btn-primary btn-block" id="start-t-btn">התחל טורניר חדש</button>
+                        <div class="t-setup-title">בחר סדר גודל לטורניר:</div>
+                        <div class="t-size-grid">
+                            <button class="t-size-card" data-size="8">
+                                <span class="t-icon">⚡</span>
+                                <span class="t-name">8 סרטים</span>
+                                <span class="t-desc">נוקאאוט מהיר (7 משחקים)</span>
+                            </button>
+                            <button class="t-size-card" data-size="16">
+                                <span class="t-icon">🏆</span>
+                                <span class="t-name">16 סרטים</span>
+                                <span class="t-desc">4 בתים של 4 + גמר</span>
+                            </button>
+                            <button class="t-size-card" data-size="32">
+                                <span class="t-icon">🌟</span>
+                                <span class="t-name">32 סרטים</span>
+                                <span class="t-desc">8 בתים של 4 + גמר</span>
+                            </button>
+                            <button class="t-size-card t-size-all" data-size="all">
+                                <span class="t-icon">👑</span>
+                                <span class="t-name">כל מה שראיתי!</span>
+                                <span class="t-desc" id="t-all-count-desc">טורניר אליפות מלא על כל הרשימה</span>
+                            </button>
                         </div>
                     </div>
 
