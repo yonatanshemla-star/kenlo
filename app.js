@@ -1496,22 +1496,24 @@ class MovieRanker {
     // --- Interactive Matchmaker Engine ---
     setupMatchmakerEvents() {
         const modal = document.getElementById('matchmaker-modal');
-        const openBtn = document.getElementById('open-matchmaker-btn');
+        const openBtns = document.querySelectorAll('.btn-matchmaker-banner, #open-matchmaker-btn, [data-open-matchmaker]');
         const closeBtn = document.getElementById('close-matchmaker-btn');
         const prevBtn = document.getElementById('mm-prev-btn');
         const nextBtn = document.getElementById('mm-next-btn');
         const findBtn = document.getElementById('mm-find-btn');
         const restartBtn = document.getElementById('mm-restart-btn');
 
-        if (!modal || !openBtn) return;
+        if (!modal) return;
 
-        openBtn.onclick = () => {
-            modal.style.display = 'flex';
-            this.currentMMStep = 1;
-            this.showMMStep(1);
-        };
+        openBtns.forEach(btn => {
+            btn.onclick = () => {
+                modal.style.display = 'flex';
+                this.currentMMStep = 1;
+                this.showMMStep(1);
+            };
+        });
 
-        closeBtn.onclick = () => { modal.style.display = 'none'; };
+        if (closeBtn) closeBtn.onclick = () => { modal.style.display = 'none'; };
         modal.onclick = (e) => { if (e.target === modal) modal.style.display = 'none'; };
 
         // Option clicks logic

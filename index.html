@@ -16,12 +16,9 @@
 </head>
 <body>
     <div class="app-container">
-        <!-- Top Header with Toggle & Matchmaker -->
+        <!-- Top Header with Toggle -->
         <header class="app-header">
             <div class="logo" dir="ltr">Cut<span>!</span></div>
-            <button class="btn-matchmaker-trigger" id="open-matchmaker-btn" title="מה לראות הערב?">
-                🍿 <span>מה לראות?</span>
-            </button>
             <div class="mode-toggle">
                 <input type="radio" name="content-type" id="mode-movie" value="movie" checked>
                 <label for="mode-movie">סרטים</label>
@@ -39,6 +36,10 @@
                     <h1>ראית או לא?</h1>
                     <p>החלק ימינה אם ראית, שמאלה אם לא</p>
                     <div class="header-actions">
+                        <button class="btn-matchmaker-banner" id="open-matchmaker-btn">
+                            <span>🍿 מה לראות הערב?</span>
+                            <i data-lucide="sparkles"></i>
+                        </button>
                         <div class="search-box">
                             <input type="text" id="movie-search" placeholder="חפש סרט להוספה מהירה...">
                             <div id="search-results" class="search-results"></div>
@@ -198,6 +199,12 @@
                 <div class="view-header">
                     <h1>רשימת צפייה</h1>
                     <p>תוכן ששמרת לצפייה מאוחרת</p>
+                    <div class="header-actions" style="margin-top: 10px;">
+                        <button class="btn-matchmaker-banner" data-open-matchmaker>
+                            <span>🍿 מה לראות הערב?</span>
+                            <i data-lucide="sparkles"></i>
+                        </button>
+                    </div>
                 </div>
                 <div class="leaderboard-container">
                     <table class="leaderboard">

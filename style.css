@@ -1383,26 +1383,38 @@ input[type="password"], input[type="text"] {
     color: #64748b;
 }
 
-/* Matchmaker Trigger Button in Header */
-.btn-matchmaker-trigger {
-    background: linear-gradient(135deg, #f1c40f, #e67e22);
-    color: #0f172a;
-    border: none;
-    padding: 6px 12px;
-    border-radius: 20px;
-    font-size: 0.85rem;
+/* Sleek Glassmorphic Matchmaker Banner Button */
+.btn-matchmaker-banner {
+    width: 100%;
+    background: linear-gradient(135deg, rgba(241, 196, 15, 0.15), rgba(30, 41, 59, 0.7));
+    border: 1px solid rgba(241, 196, 15, 0.35);
+    color: #f1c40f;
+    padding: 10px 16px;
+    border-radius: 16px;
+    font-size: 0.9rem;
     font-weight: 700;
     cursor: pointer;
     display: flex;
     align-items: center;
-    gap: 6px;
-    box-shadow: 0 4px 12px rgba(241, 196, 15, 0.3);
-    transition: all 0.2s ease;
+    justify-content: space-between;
+    margin-bottom: 12px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+    transition: all 0.25s ease;
+    backdrop-filter: blur(10px);
 }
 
-.btn-matchmaker-trigger:hover {
+.btn-matchmaker-banner:hover {
+    background: linear-gradient(135deg, rgba(241, 196, 15, 0.25), rgba(30, 41, 59, 0.9));
+    border-color: #f1c40f;
     transform: translateY(-2px);
-    box-shadow: 0 6px 18px rgba(241, 196, 15, 0.4);
+    box-shadow: 0 8px 25px rgba(241, 196, 15, 0.3);
+    color: #fff;
+}
+
+.btn-matchmaker-banner i {
+    width: 18px;
+    height: 18px;
+    color: #f1c40f;
 }
 
 /* Modal Overlay & Card */
