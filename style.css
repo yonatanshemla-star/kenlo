@@ -590,25 +590,63 @@ body {
 .leaderboard-container {
     background: var(--card-bg);
     border-radius: 20px;
-    padding: 15px;
+    padding: 12px 15px;
     border: 1px solid var(--glass-border);
+    overflow-x: hidden;
+    box-sizing: border-box;
+    width: 100%;
 }
 
 .leaderboard {
     width: 100%;
     border-collapse: collapse;
+    table-layout: fixed;
+    box-sizing: border-box;
+}
+
+.leaderboard th:nth-child(1),
+.leaderboard td:nth-child(1) {
+    width: 24px;
+    text-align: center;
+    padding: 10px 4px;
+}
+
+.leaderboard th:nth-child(2),
+.leaderboard td:nth-child(2) {
+    width: 46px;
+    padding: 10px 4px;
+}
+
+.leaderboard th:nth-child(3),
+.leaderboard td:nth-child(3) {
+    padding: 10px 8px;
+    word-break: break-word;
+    overflow-wrap: break-word;
+}
+
+.leaderboard th:nth-child(4),
+.leaderboard td:nth-child(4) {
+    width: 52px;
+    text-align: center;
+    padding: 10px 4px;
+}
+
+.leaderboard th:nth-child(5),
+.leaderboard td:nth-child(5) {
+    width: 36px;
+    text-align: center;
+    padding: 10px 4px;
 }
 
 .leaderboard th {
-    text-align: right;
-    padding: 12px;
     color: var(--text-secondary);
     border-bottom: 1px solid var(--glass-border);
+    font-size: 0.8rem;
 }
 
 .leaderboard td {
-    padding: 12px;
-    border-bottom: 1px solid rgba(255,255,255,0.05);
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    vertical-align: middle;
 }
 
 .mini-poster {
